@@ -76,6 +76,8 @@ export class Game {
 
   // ═══════════════ 시작 ═══════════════
   _common(net, mode) {
+    input.resetCounts();
+    input.counting = true;
     this.net = net || null;
     this.mode = mode;
     this.isHost = !net || net.isHost;
@@ -173,6 +175,7 @@ export class Game {
 
   stop(keepNet) {
     this.running = false;
+    input.counting = false;
     if (this.net && !keepNet) this.net.close();
     this.net = null;
     this.peers = new Map();

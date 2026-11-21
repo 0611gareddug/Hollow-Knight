@@ -60,6 +60,8 @@ class Input {
     this.padIndex = -1;
     this.lastDevice = null;
     this.enabled = true;
+    this.counting = false;
+    this.resetCounts();
     for (const a of ACTIONS) {
       this.held[a] = this.pressed[a] = this.released[a] = this.prev[a] = false;
     }
@@ -139,9 +141,28 @@ class Input {
       this.released[a] = this.enabled && !now[a] && this.prev[a];
       this.held[a] = this.enabled && (now[a] || !!p);
       this.prev[a] = now[a];
+      // 스트리머 모드 통계 (게임 중 입력만)
+      if (this.pressed[a] && this.counting) {
+        this.counts[a] = (this.counts[a] || 0) + 1;
+        this.total++;
+        this.pressTimes.push(performance.now());
+      }
     }
     this.kbPress = {};
     this.virtualPress = {};
+  }
+
+  resetCounts() {
+    this.counts = {};
+    this.total = 0;
+    this.pressTimes = [];
+  }
+  // 최근 1초 입력 수
+  kps() {
+    const now = performance.now();
+    const t = this.pressTimes;
+    while (t.length && now - t[0] > 1000) t.shift();
+    return t.length;
   }
 
   // UI에서 입력을 소비 (메뉴 닫을 때 같은 키가 게임으로 새지 않게)

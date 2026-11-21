@@ -1,5 +1,7 @@
 // 캔버스 HUD: 불씨 그릇, 가면(체력), 호박석, 동료, 보스 체력, 타이머, 지역명, 지도
-import { profile } from '../core/settings.js';
+import { profile, settings } from '../core/settings.js';
+import { input, getKeys } from '../core/input.js';
+import { keyName } from './menus.js';
 import { fmtTime, clamp, TILE } from '../core/util.js';
 import { DEFS } from '../entities/sim.js';
 import { PALETTES } from '../render/palette.js';
@@ -267,8 +269,56 @@ export class HUD {
       }
       ctx.globalAlpha = 1;
     }
+    if (settings.streamer && !g.mapOpen) this.drawKeys(ctx, W, H, ui);
     if (g.mapOpen) this.drawMap(ctx, W, H, ui);
     ctx.restore();
+  }
+
+  // ─── 스트리머 모드: 키 입력 표시 ───
+  drawKeys(ctx, W, H, ui) {
+    const g = this.g;
+    const s = 40 * ui, gap = 5 * ui;
+    const layout = [
+      ['up', 1, 0], ['left', 0, 1], ['down', 1, 1], ['right', 2, 1],
+      ['jump', 3.4, 0], ['attack', 4.4, 0], ['dash', 3.4, 1], ['heal', 4.4, 1],
+    ];
+    const NAME = { up: '위', down: '아래', left: '왼쪽', right: '오른쪽', jump: '점프', attack: '공격', dash: '대시', heal: '회복' };
+    const ARROW = { up: '▲', down: '▼', left: '◀', right: '▶' };
+    const bw = 5.4 * (s + gap) - gap, bh = 2 * (s + gap) - gap + 24 * ui;
+    const pos = settings.streamerPos || 'br';
+    const m = 16 * ui;
+    // 터치 버튼/보스 체력바와 겹치지 않게
+    let x0 = pos.endsWith('l') ? m : W - bw - m;
+    let y0 = pos.startsWith('t') ? (pos === 'tl' ? 120 * ui : 56 * ui) : H - bh - m - (g.sim.list().some((e) => e.maxHp > 100) ? 50 * ui : 0);
+    if (pos === 'tr' && (g.race || g.rush)) y0 = 84 * ui;
+    ctx.fillStyle = 'rgba(5,8,10,0.55)';
+    ctx.fillRect(x0 - 8 * ui, y0 - 8 * ui, bw + 16 * ui, bh + 14 * ui);
+    const kb = input.lastDevice === 'kb' || !input.lastDevice;
+    for (const [a, cx, cy] of layout) {
+      const x = x0 + cx * (s + gap), y = y0 + cy * (s + gap);
+      const on = input.held[a];
+      ctx.fillStyle = on ? 'rgba(255,190,110,0.9)' : 'rgba(30,38,40,0.85)';
+      ctx.fillRect(x, y, s, s);
+      ctx.strokeStyle = on ? '#ffe2a8' : 'rgba(200,190,165,0.35)';
+      ctx.lineWidth = 1.5 * ui;
+      ctx.strokeRect(x + 0.5, y + 0.5, s - 1, s - 1);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = on ? '#1a1208' : '#e8dcc0';
+      let label = kb ? keyName(getKeys(a)[0] || getKeys(a)[1]) : ARROW[a] || NAME[a];
+      if (kb && label.length > 5) label = label.replace('왼쪽 ', 'L').replace('오른쪽 ', 'R');
+      ctx.font = `700 ${(label.length > 3 ? 10 : 14) * ui}px ${SANS}`;
+      ctx.fillText(label, x + s / 2, y + s * 0.48);
+      ctx.font = `500 ${10 * ui}px ${SANS}`;
+      ctx.fillStyle = on ? '#3a2a12' : '#9fb0ac';
+      ctx.fillText(String(input.counts[a] || 0), x + s / 2, y + s * 0.85);
+    }
+    ctx.textAlign = 'left';
+    ctx.font = `600 ${12 * ui}px ${SANS}`;
+    ctx.fillStyle = '#e8dcc0';
+    ctx.fillText(`총 ${input.total}회`, x0, y0 + 2 * (s + gap) + 13 * ui);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ffd58a';
+    ctx.fillText(`${input.kps()} KPS`, x0 + bw, y0 + 2 * (s + gap) + 13 * ui);
   }
 
   drawMap(ctx, W, H, ui) {

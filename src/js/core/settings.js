@@ -13,6 +13,8 @@ const defSettings = {
   touchAlpha: 0.55,
   touchLayout: null, // {id:{x,y}} 화면 비율 좌표
   showFps: false,
+  streamer: false, // 스트리머 모드: 입력 키 표시
+  streamerPos: 'br', // br | bl | tr | tl
 };
 
 const defProfile = {
