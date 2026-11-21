@@ -1,7 +1,7 @@
 // DOM 메뉴: 타이틀, 로비, 설정, 꾸미기, 상점, 일시정지, 결과, 엔딩
 import { settings, profile, saveSettings, saveProfile, CLOAKS, MASKS } from '../core/settings.js';
 import { audio } from '../core/audio.js';
-import { input } from '../core/input.js';
+import { input, ACTIONS, getKeys, setKey, resetKeys } from '../core/input.js';
 import { fmtTime, isTouchDevice } from '../core/util.js';
 import { hasWorldSave, clearWorld, loadWorld } from '../core/save.js';
 import { COURSES, RUSH_ORDER } from '../world/data.js';
@@ -17,6 +17,28 @@ const KEYS = {
   pad: { J: 'Ⓐ', A: 'Ⓧ', D: 'Ⓑ', H: 'Ⓨ', U: '↑', DN: '↓', LR: '스틱' },
   touch: { J: '[점프]', A: '[공격]', D: '[대시]', H: '[회복]', U: '조이스틱↑', DN: '조이스틱↓', LR: '조이스틱' },
 };
+
+const ACTION_NAME = {
+  left: '왼쪽', right: '오른쪽', up: '위 (앉기·위 베기)', down: '아래 (아래 베기)', jump: '점프', attack: '공격',
+  dash: '대시', heal: '회복 (길게)', map: '지도', pause: '일시정지',
+};
+const SPECIAL = {
+  ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Space: 'Space', Tab: 'Tab', Escape: 'Esc',
+  Enter: 'Enter', Backspace: 'Backspace', ShiftLeft: '왼쪽 Shift', ShiftRight: '오른쪽 Shift', ControlLeft: '왼쪽 Ctrl',
+  ControlRight: '오른쪽 Ctrl', AltLeft: '왼쪽 Alt', AltRight: '오른쪽 Alt', CapsLock: 'CapsLock', Semicolon: ';',
+  Quote: "'", Comma: ',', Period: '.', Slash: '/', Backslash: '\\', BracketLeft: '[', BracketRight: ']', Minus: '-',
+  Equal: '=', Backquote: '`',
+};
+export function keyName(code) {
+  if (!code) return '—';
+  if (SPECIAL[code]) return SPECIAL[code];
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Digit')) return code.slice(5);
+  if (code.startsWith('Numpad')) return '숫자패드 ' + code.slice(6);
+  return code;
+}
+const kbName = (a) => keyName(getKeys(a)[0] || getKeys(a)[1]);
+const kbBoth = (a) => getKeys(a).filter(Boolean).map(keyName).join(' / ') || '—';
 
 export class Menus {
   constructor(root) {
@@ -36,7 +58,8 @@ export class Menus {
 
   keyText(str) {
     const dev = input.lastDevice === 'pad' ? 'pad' : this.isTouch() ? 'touch' : 'kb';
-    return String(str).replace(/\{(J|A|D|H|U|DN|LR)\}/g, (_, k) => KEYS[dev][k]);
+    const kb = { J: kbName('jump'), A: kbName('attack'), D: kbName('dash'), H: kbName('heal'), U: kbName('up'), DN: kbName('down'), LR: kbName('left') + ' ' + kbName('right') };
+    return String(str).replace(/\{(J|A|D|H|U|DN|LR)\}/g, (_, k) => (dev === 'kb' ? kb : KEYS[dev])[k]);
   }
 
   _screen(html, cls = '') {
@@ -182,15 +205,15 @@ export class Menus {
         <h2>조작법</h2>
         <table class="keys">
           <tr><th></th><th>키보드</th><th>게임패드</th><th>모바일</th></tr>
-          <tr><td>이동</td><td>← → / A D</td><td>스틱 · 방향키</td><td>조이스틱</td></tr>
-          <tr><td>점프</td><td>Z / Space / K</td><td>Ⓐ</td><td>점프</td></tr>
-          <tr><td>공격</td><td>X / J</td><td>Ⓧ</td><td>공격</td></tr>
-          <tr><td>위·아래 베기</td><td>↑ / ↓ + 공격</td><td>스틱 + Ⓧ</td><td>조이스틱 + 공격</td></tr>
-          <tr><td>대시</td><td>C / Shift / L</td><td>Ⓑ · RB · RT</td><td>대시</td></tr>
-          <tr><td>회복 (길게)</td><td>V / F / I</td><td>Ⓨ · LB · LT</td><td>회복</td></tr>
-          <tr><td>앉기 · 상점</td><td>↑</td><td>↑</td><td>조이스틱 ↑</td></tr>
-          <tr><td>지도</td><td>Tab / M</td><td>Back</td><td>지도</td></tr>
-          <tr><td>일시정지</td><td>Esc / P</td><td>Start</td><td>Ⅱ</td></tr>
+          <tr><td>이동</td><td>${kbBoth('left')} · ${kbBoth('right')}</td><td>스틱 · 방향키</td><td>조이스틱</td></tr>
+          <tr><td>점프</td><td>${kbBoth('jump')}</td><td>Ⓐ</td><td>점프</td></tr>
+          <tr><td>공격</td><td>${kbBoth('attack')}</td><td>Ⓧ</td><td>공격</td></tr>
+          <tr><td>위·아래 베기</td><td>${kbName('up')} / ${kbName('down')} + 공격</td><td>스틱 + Ⓧ</td><td>조이스틱 + 공격</td></tr>
+          <tr><td>대시</td><td>${kbBoth('dash')}</td><td>Ⓑ · RB · RT</td><td>대시</td></tr>
+          <tr><td>회복 (길게)</td><td>${kbBoth('heal')}</td><td>Ⓨ · LB · LT</td><td>회복</td></tr>
+          <tr><td>앉기 · 상점</td><td>${kbName('up')}</td><td>↑</td><td>조이스틱 ↑</td></tr>
+          <tr><td>지도</td><td>${kbBoth('map')}</td><td>Back</td><td>지도</td></tr>
+          <tr><td>일시정지</td><td>${kbBoth('pause')}</td><td>Start</td><td>Ⅱ</td></tr>
         </table>
         <ul class="tips">
           <li>점프 버튼을 <b>길게</b> 누를수록 높이 뜁니다.</li>
@@ -214,6 +237,8 @@ export class Menus {
         ${sl('s_sfx', '효과음', settings.sfx)}
         ${sl('s_shake', '화면 흔들림', settings.shake)}
         ${sl('s_hitstop', '타격 정지(히트스톱)', settings.hitstop)}
+        <h3>키보드</h3>
+        <button data-a="keys">키 설정</button>
         <h3>모바일 버튼</h3>
         ${sl('s_tsize', '버튼 크기', settings.touchSize, 0.7, 1.5)}
         ${sl('s_talpha', '버튼 투명도', settings.touchAlpha, 0.2, 1)}
@@ -243,7 +268,63 @@ export class Menus {
         this.touch.resetLayout();
         audio.play('uiOk');
       } else if (a === 'edit') this.editTouch(() => this.showSettings(back, inGame));
+      else if (a === 'keys') this.showKeys(() => this.showSettings(back, inGame));
     });
+  }
+
+  // ═══════════════ 키 설정 ═══════════════
+  showKeys(back) {
+    const prevModal = this.modal;
+    const render = (waiting) => {
+      // 겹치는 키 찾기
+      const owner = {};
+      for (const a of ACTIONS) for (const c of getKeys(a)) if (c) (owner[c] = owner[c] || []).push(a);
+      const cell = (a, i) => {
+        const c = getKeys(a)[i];
+        const dup = c && owner[c].length > 1;
+        const others = dup ? owner[c].filter((b) => b !== a).map((b) => ACTION_NAME[b]).join(', ') : '';
+        const wait = waiting && waiting[0] === a && waiting[1] === i;
+        return `<button class="kb ${dup ? 'dup' : ''} ${wait ? 'wait' : ''}" data-k="${a}:${i}" ${dup ? `title="다른 동작과 겹침: ${others}"` : ''}>${wait ? '키를 누르세요…' : esc(keyName(c))}${dup ? `<small>겹침: ${esc(others)}</small>` : ''}</button>`;
+      };
+      const anyDup = Object.values(owner).some((l) => l.length > 1);
+      const s = this._screen(`
+        <div class="panel keys-panel">
+          <h2>키 설정</h2>
+          <p class="sub">칸을 누른 뒤 원하는 키를 누르세요. <b>Backspace</b> = 비우기, <b>Esc</b> = 취소. Esc는 항상 일시정지로도 동작합니다.</p>
+          ${anyDup ? '<div class="notice">겹치는 키가 있습니다. 한 키로 두 동작이 동시에 실행됩니다.</div>' : ''}
+          <div class="kgrid">
+            <div class="kh">동작</div><div class="kh">주 키</div><div class="kh">보조 키</div>
+            ${ACTIONS.map((a) => `<div class="kn">${ACTION_NAME[a]}</div>${cell(a, 0)}${cell(a, 1)}`).join('')}
+          </div>
+          <div class="row"><button data-a="reset">기본값으로</button><button data-a="back" class="primary">완료</button></div>
+        </div>`, this.game && this.game.running ? 'dim' : '');
+      s.addEventListener('click', (e) => {
+        const b = e.target.closest('button');
+        if (!b || input.capture) return;
+        if (b.dataset.a === 'back') {
+          this.modal = prevModal;
+          return back();
+        }
+        if (b.dataset.a === 'reset') {
+          resetKeys();
+          audio.play('uiOk');
+          return render();
+        }
+        if (b.dataset.k) {
+          const [a, i] = b.dataset.k.split(':');
+          audio.play('ui');
+          render([a, Number(i)]);
+          input.capture = (code) => {
+            if (code === 'Escape') return render();
+            setKey(a, Number(i), code === 'Backspace' || code === 'Delete' ? null : code);
+            audio.play('uiOk');
+            render();
+          };
+        }
+      });
+    };
+    this.modal = { close: () => { input.capture = null; this.modal = prevModal; back(); } };
+    render();
   }
 
   editTouch(back) {

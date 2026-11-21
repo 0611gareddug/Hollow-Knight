@@ -1,18 +1,51 @@
 // 키보드 / 게임패드 / 터치를 하나의 액션 입력으로 통합
 export const ACTIONS = ['left', 'right', 'up', 'down', 'jump', 'attack', 'dash', 'heal', 'map', 'pause'];
 
-const KEYMAP = {
-  ArrowLeft: 'left', KeyA: 'left',
-  ArrowRight: 'right', KeyD: 'right',
-  ArrowUp: 'up', KeyW: 'up',
-  ArrowDown: 'down', KeyS: 'down',
-  KeyZ: 'jump', Space: 'jump', KeyK: 'jump',
-  KeyX: 'attack', KeyJ: 'attack',
-  KeyC: 'dash', ShiftLeft: 'dash', ShiftRight: 'dash', KeyL: 'dash',
-  KeyV: 'heal', KeyF: 'heal', KeyI: 'heal',
-  Tab: 'map', KeyM: 'map',
-  Escape: 'pause', KeyP: 'pause',
+import { settings, saveSettings } from './settings.js';
+
+// 기본 키 배치 (동작마다 주 키 + 보조 키)
+export const DEFAULT_KEYS = {
+  left: ['ArrowLeft', 'KeyA'],
+  right: ['ArrowRight', 'KeyD'],
+  up: ['ArrowUp', 'KeyW'],
+  down: ['ArrowDown', 'KeyS'],
+  jump: ['KeyZ', 'Space'],
+  attack: ['KeyX', 'KeyJ'],
+  dash: ['KeyC', 'ShiftLeft'],
+  heal: ['KeyV', 'KeyF'],
+  map: ['Tab', 'KeyM'],
+  pause: ['Escape', 'KeyP'],
 };
+
+// 코드 → 동작 목록 (같은 키가 여러 동작에 묶일 수 있음)
+let KEYMAP = {};
+export function rebuildKeymap() {
+  const k = settings.keys || {};
+  KEYMAP = {};
+  for (const a of ACTIONS) {
+    const list = Array.isArray(k[a]) ? k[a] : DEFAULT_KEYS[a];
+    for (const code of list) if (code) (KEYMAP[code] = KEYMAP[code] || []).push(a);
+  }
+  // Esc는 항상 일시정지 (키 설정으로 잠기지 않도록)
+  if (!KEYMAP.Escape) KEYMAP.Escape = ['pause'];
+}
+export function getKeys(a) {
+  const k = settings.keys && settings.keys[a];
+  return Array.isArray(k) ? k.slice(0, 2).concat([null, null]).slice(0, 2) : DEFAULT_KEYS[a].slice();
+}
+export function setKey(a, slot, code) {
+  if (!settings.keys) settings.keys = {};
+  for (const b of ACTIONS) if (!settings.keys[b]) settings.keys[b] = getKeys(b);
+  settings.keys[a][slot] = code;
+  saveSettings();
+  rebuildKeymap();
+}
+export function resetKeys() {
+  settings.keys = null;
+  saveSettings();
+  rebuildKeymap();
+}
+rebuildKeymap();
 
 class Input {
   constructor() {
@@ -32,17 +65,25 @@ class Input {
     }
     window.addEventListener('keydown', (e) => {
       const tag = e.target && e.target.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      const a = KEYMAP[e.code];
-      if (a) {
+      if (this.capture) {
         e.preventDefault();
-        if (!this.keys[e.code]) this.kbPress[a] = true;
+        e.stopPropagation();
+        const cb = this.capture;
+        this.capture = null;
+        cb(e.code);
+        return;
+      }
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const acts = KEYMAP[e.code];
+      if (acts) {
+        e.preventDefault();
+        if (!this.keys[e.code]) for (const a of acts) this.kbPress[a] = true;
         this.keys[e.code] = true;
         this.lastDevice = 'kb';
       }
     });
     window.addEventListener('keyup', (e) => {
-      if (KEYMAP[e.code]) this.keys[e.code] = false;
+      this.keys[e.code] = false;
     });
     window.addEventListener('blur', () => {
       this.keys = {};
@@ -62,7 +103,7 @@ class Input {
   update() {
     const now = {};
     for (const a of ACTIONS) now[a] = false;
-    for (const code in this.keys) if (this.keys[code]) now[KEYMAP[code]] = true;
+    for (const code in this.keys) if (this.keys[code] && KEYMAP[code]) for (const a of KEYMAP[code]) now[a] = true;
     for (const a in this.virtual) if (this.virtual[a]) now[a] = true;
 
     // 게임패드
