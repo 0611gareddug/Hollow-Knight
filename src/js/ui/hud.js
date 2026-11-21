@@ -284,7 +284,8 @@ export class HUD {
     ];
     const NAME = { up: '위', down: '아래', left: '왼쪽', right: '오른쪽', jump: '점프', attack: '공격', dash: '대시', heal: '회복' };
     const ARROW = { up: '▲', down: '▼', left: '◀', right: '▶' };
-    const bw = 5.4 * (s + gap) - gap, bh = 2 * (s + gap) - gap + 24 * ui;
+    const mw = 1.5 * s; // 마우스 그림 폭
+    const bw = 5.4 * (s + gap) - gap + mw + gap * 3, bh = 2 * (s + gap) - gap + 24 * ui;
     const pos = settings.streamerPos || 'br';
     const m = 16 * ui;
     // 터치 버튼/보스 체력바와 겹치지 않게
@@ -306,11 +307,57 @@ export class HUD {
       ctx.fillStyle = on ? '#1a1208' : '#e8dcc0';
       let label = kb ? keyName(getKeys(a)[0] || getKeys(a)[1]) : ARROW[a] || NAME[a];
       if (kb && label.length > 5) label = label.replace('왼쪽 ', 'L').replace('오른쪽 ', 'R');
-      ctx.font = `700 ${(label.length > 3 ? 10 : 14) * ui}px ${SANS}`;
+      ctx.font = `700 ${(label.length > 3 || (/[가-힣]/.test(label) && label.length >= 3) ? 10 : 14) * ui}px ${SANS}`;
       ctx.fillText(label, x + s / 2, y + s * 0.48);
       ctx.font = `500 ${10 * ui}px ${SANS}`;
       ctx.fillStyle = on ? '#3a2a12' : '#9fb0ac';
       ctx.fillText(String(input.counts[a] || 0), x + s / 2, y + s * 0.85);
+    }
+    // 마우스 (좌·우 버튼 + 클릭 횟수)
+    {
+      const mx = x0 + 5.4 * (s + gap) + gap * 2, my = y0, mh = 2 * (s + gap) - gap;
+      const r = mw / 2;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(mx, my + r);
+      ctx.arc(mx + r, my + r, r, Math.PI, 0);
+      ctx.lineTo(mx + mw, my + mh - r);
+      ctx.arc(mx + r, my + mh - r, r, 0, Math.PI);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(30,38,40,0.85)';
+      ctx.fill();
+      ctx.clip();
+      const half = my + mh * 0.45;
+      for (const [b, bx] of [[0, mx], [2, mx + r]]) {
+        if (input.mouseHeld[b]) {
+          ctx.fillStyle = 'rgba(255,190,110,0.9)';
+          ctx.fillRect(bx, my, r, half - my);
+        }
+      }
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(200,190,165,0.45)';
+      ctx.lineWidth = 1.5 * ui;
+      ctx.beginPath();
+      ctx.moveTo(mx, my + r);
+      ctx.arc(mx + r, my + r, r, Math.PI, 0);
+      ctx.lineTo(mx + mw, my + mh - r);
+      ctx.arc(mx + r, my + mh - r, r, 0, Math.PI);
+      ctx.closePath();
+      ctx.moveTo(mx, half);
+      ctx.lineTo(mx + mw, half);
+      ctx.moveTo(mx + r, my);
+      ctx.lineTo(mx + r, half);
+      ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.font = `600 ${10 * ui}px ${SANS}`;
+      for (const [b, bx] of [[0, mx + r / 2], [2, mx + r * 1.5]]) {
+        ctx.fillStyle = input.mouseHeld[b] ? '#1a1208' : '#9fb0ac';
+        ctx.fillText(b === 0 ? 'L' : 'R', bx, my + mh * 0.2);
+        ctx.fillText(String(input.mouseCounts[b] || 0), bx, my + mh * 0.38);
+      }
+      ctx.fillStyle = '#9fb0ac';
+      ctx.font = `500 ${9 * ui}px ${SANS}`;
+      ctx.fillText('클릭', mx + r, my + mh * 0.75);
     }
     ctx.textAlign = 'left';
     ctx.font = `600 ${12 * ui}px ${SANS}`;

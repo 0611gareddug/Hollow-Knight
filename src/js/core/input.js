@@ -61,6 +61,7 @@ class Input {
     this.lastDevice = null;
     this.enabled = true;
     this.counting = false;
+    this.mouseHeld = {};
     this.resetCounts();
     for (const a of ACTIONS) {
       this.held[a] = this.pressed[a] = this.released[a] = this.prev[a] = false;
@@ -87,7 +88,56 @@ class Input {
     window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
     });
+    // 마우스 버튼 (좌클릭 Mouse0, 휠클릭 Mouse1, 우클릭 Mouse2) – 키처럼 묶을 수 있음
+    let lastTouch = 0;
+    window.addEventListener('touchstart', () => (lastTouch = performance.now()), { passive: true, capture: true });
+    const fromTouch = () => performance.now() - lastTouch < 1000;
+    window.addEventListener('mousedown', (e) => {
+      if (fromTouch() || e.button > 2) return;
+      const code = 'Mouse' + e.button;
+      if (this.capture) {
+        e.preventDefault();
+        e.stopPropagation();
+        const cb = this.capture;
+        this.capture = null;
+        this.swallowClick = true; // 이 클릭이 메뉴 버튼을 누르지 않게
+        cb(code);
+        return;
+      }
+      // 게임 화면(캔버스) 위 클릭만 게임 입력으로
+      if (!e.target || e.target.id !== 'game') return;
+      this.mouseHeld[e.button] = true;
+      if (this.counting) this.mouseCounts[e.button] = (this.mouseCounts[e.button] || 0) + 1;
+      const acts = KEYMAP[code];
+      if (acts) {
+        e.preventDefault();
+        if (!this.keys[code]) for (const a of acts) this.kbPress[a] = true;
+        this.keys[code] = true;
+        this.lastDevice = 'kb';
+      }
+    }, true);
+    window.addEventListener('mouseup', (e) => {
+      if (e.button > 2) return;
+      // 클릭 이벤트가 안 오는 경우(대상 요소가 사라짐)에도 차단이 남지 않게
+      if (this.swallowClick) setTimeout(() => (this.swallowClick = false), 0);
+      this.mouseHeld[e.button] = false;
+      this.keys['Mouse' + e.button] = false;
+    }, true);
+    window.addEventListener('click', (e) => {
+      if (this.swallowClick) {
+        this.swallowClick = false;
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, true);
+    window.addEventListener('contextmenu', (e) => {
+      if (this.swallowClick || (e.target && e.target.id === 'game')) {
+        this.swallowClick = false;
+        e.preventDefault();
+      }
+    }, true);
     window.addEventListener('blur', () => {
+      this.mouseHeld = {};
       this.keys = {};
       this.virtual = {};
     });
@@ -153,6 +203,7 @@ class Input {
   }
 
   resetCounts() {
+    this.mouseCounts = {};
     this.counts = {};
     this.total = 0;
     this.pressTimes = [];

@@ -32,6 +32,9 @@ const SPECIAL = {
 export function keyName(code) {
   if (!code) return '—';
   if (SPECIAL[code]) return SPECIAL[code];
+  if (code === 'Mouse0') return '좌클릭';
+  if (code === 'Mouse1') return '휠클릭';
+  if (code === 'Mouse2') return '우클릭';
   if (code.startsWith('Key')) return code.slice(3);
   if (code.startsWith('Digit')) return code.slice(5);
   if (code.startsWith('Numpad')) return '숫자패드 ' + code.slice(6);
@@ -296,13 +299,13 @@ export class Menus {
         const dup = c && owner[c].length > 1;
         const others = dup ? owner[c].filter((b) => b !== a).map((b) => ACTION_NAME[b]).join(', ') : '';
         const wait = waiting && waiting[0] === a && waiting[1] === i;
-        return `<button class="kb ${dup ? 'dup' : ''} ${wait ? 'wait' : ''}" data-k="${a}:${i}" ${dup ? `title="다른 동작과 겹침: ${others}"` : ''}>${wait ? '키를 누르세요…' : esc(keyName(c))}${dup ? `<small>겹침: ${esc(others)}</small>` : ''}</button>`;
+        return `<button class="kb ${dup ? 'dup' : ''} ${wait ? 'wait' : ''}" data-k="${a}:${i}" ${dup ? `title="다른 동작과 겹침: ${others}"` : ''}>${wait ? '키 또는 클릭…' : esc(keyName(c))}${dup ? `<small>겹침: ${esc(others)}</small>` : ''}</button>`;
       };
       const anyDup = Object.values(owner).some((l) => l.length > 1);
       const s = this._screen(`
         <div class="panel keys-panel">
           <h2>키 설정</h2>
-          <p class="sub">칸을 누른 뒤 원하는 키를 누르세요. <b>Backspace</b> = 비우기, <b>Esc</b> = 취소. Esc는 항상 일시정지로도 동작합니다.</p>
+          <p class="sub">칸을 누른 뒤 원하는 키를 누르거나 마우스를 클릭하세요 (좌클릭·우클릭·휠클릭). <b>Backspace</b> = 비우기, <b>Esc</b> = 취소. Esc는 항상 일시정지로도 동작합니다.</p>
           ${anyDup ? '<div class="notice">겹치는 키가 있습니다. 한 키로 두 동작이 동시에 실행됩니다.</div>' : ''}
           <div class="kgrid">
             <div class="kh">동작</div><div class="kh">주 키</div><div class="kh">보조 키</div>
