@@ -86,6 +86,24 @@ function mothStatue(g, x, base, s) {
   g.fillRect(x - s * 0.7, base, s * 1.4, s * 0.3);
 }
 
+function gear(g, x, y, r, teeth) {
+  g.beginPath();
+  for (let i = 0; i < teeth * 2; i++) {
+    const a = (i / (teeth * 2)) * Math.PI * 2, rr = i % 2 ? r : r * 0.85;
+    g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  g.closePath();
+  g.moveTo(x + r * 0.35, y);
+  g.arc(x, y, r * 0.35, 0, Math.PI * 2, true);
+  g.fill('evenodd');
+}
+
+function cloud(g, x, y, s) {
+  g.beginPath();
+  for (let i = 0; i < 6; i++) g.arc(x + (i - 2.5) * s * 0.28, y + Math.sin(i * 1.7) * s * 0.12, s * (0.22 + (i % 3) * 0.06), 0, Math.PI * 2);
+  g.fill();
+}
+
 function makeLayer(zone, depth, seed) {
   const c = document.createElement('canvas');
   c.width = c.height = S;
@@ -142,6 +160,56 @@ function makeLayer(zone, depth, seed) {
         } else {
           column(gg, it.x, 70 + it.a * 30, S);
         }
+      } else if (zone === 5) {
+        if (depth === 0) {
+          gear(gg, it.x, it.y, 80 + it.a * 90, 12 + ((it.b * 8) | 0));
+        } else if (depth === 1) {
+          // 굵은 파이프와 밸브
+          gg.fillRect(it.x - 8, 0, 16, S);
+          gg.fillRect(it.x - 14, it.y, 28, 10);
+          gear(gg, it.x + 70, it.y + 120, 30 + it.c * 30, 10);
+        } else {
+          gear(gg, it.x + 40, it.y, 60 + it.b * 40, 12);
+        }
+      } else if (zone === 6) {
+        if (depth === 0) {
+          cloud(gg, it.x, it.y, 120 + it.a * 100);
+        } else if (depth === 1) {
+          // 떠 있는 섬 + 늘어진 덩굴
+          gg.beginPath();
+          gg.moveTo(it.x - 70, it.y);
+          gg.lineTo(it.x + 70, it.y);
+          gg.lineTo(it.x + 30, it.y + 50 + it.b * 40);
+          gg.lineTo(it.x - 10, it.y + 90 + it.b * 50);
+          gg.lineTo(it.x - 40, it.y + 40);
+          gg.fill();
+          gg.lineWidth = 2;
+          for (let k = 0; k < 3; k++) {
+            gg.beginPath();
+            gg.moveTo(it.x - 30 + k * 25, it.y + 20);
+            gg.quadraticCurveTo(it.x - 25 + k * 25, it.y + 80, it.x - 32 + k * 25, it.y + 120 + k * 20);
+            gg.stroke();
+          }
+        } else {
+          cloud(gg, it.x, it.y, 80 + it.c * 60);
+        }
+      } else if (zone === 7) {
+        if (depth === 0) {
+          arch(gg, it.x, 200 + it.b * 200, 160 + it.a * 80, 600, 26);
+        } else if (depth === 1) {
+          // 부서진 기둥
+          const h = 200 + it.a * 260;
+          gg.fillRect(it.x - 22, S - h, 44, h);
+          gg.beginPath();
+          gg.moveTo(it.x - 22, S - h);
+          gg.lineTo(it.x - 4, S - h - 30);
+          gg.lineTo(it.x + 8, S - h - 6);
+          gg.lineTo(it.x + 22, S - h - 20);
+          gg.lineTo(it.x + 22, S - h);
+          gg.fill();
+        } else {
+          spire(gg, rr, it.x, S, 140, 90 + it.b * 80, true);
+        }
       } else {
         if (depth === 0) {
           // 커튼 주름
@@ -175,8 +243,9 @@ function makeLayer(zone, depth, seed) {
     for (let i = 0; i < 6; i++) {
       const x = r() * S, y = r() * S;
       const gr = g.createRadialGradient(x, y, 0, x, y, 26);
-      gr.addColorStop(0, 'rgba(255,190,110,0.55)');
-      gr.addColorStop(1, 'rgba(255,190,110,0)');
+      const lc = zone === 6 ? '255,255,240' : zone === 7 ? '255,120,70' : '255,190,110';
+      gr.addColorStop(0, `rgba(${lc},0.55)`);
+      gr.addColorStop(1, `rgba(${lc},0)`);
       g.fillStyle = gr;
       g.fillRect(x - 26, y - 26, 52, 52);
       g.fillStyle = 'rgba(255,220,160,0.9)';

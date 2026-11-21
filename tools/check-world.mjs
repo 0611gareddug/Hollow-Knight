@@ -3,6 +3,8 @@ import { World } from '../src/js/world/world.js';
 import { STORY, COURSES, RUSH } from '../src/js/world/data.js';
 import { ENEMIES } from '../src/js/entities/enemies.js';
 import { BOSSES } from '../src/js/entities/bosses.js';
+import { ENEMIES2 } from '../src/js/entities/enemies2.js';
+import { BOSSES2 } from '../src/js/entities/bosses2.js';
 
 const T = 32;
 let errors = 0;
@@ -11,7 +13,7 @@ const err = (m) => { console.log('  ✗ ' + m); errors++; };
 function checkWorld(name, def) {
   console.log(`[${name}]`);
   const w = new World(def);
-  const defs = Object.assign({}, ENEMIES, BOSSES);
+  const defs = Object.assign({}, ENEMIES, BOSSES, ENEMIES2, BOSSES2);
   // 겹치는 방
   for (let i = 0; i < w.rooms.length; i++)
     for (let j = i + 1; j < w.rooms.length; j++) {
@@ -34,6 +36,7 @@ function checkWorld(name, def) {
     }
   }
   for (const o of w.objects) {
+    if (o.type === 'anchor' && w.solidAt(o.x, o.y)) err(`${o.room}: anchor inside solid`);
     if (['bench', 'shop', 'shrine', 'lamp', 'sign'].includes(o.type)) {
       if (w.solidAt(o.x, o.y - 4)) err(`${o.room}: ${o.type} inside solid`);
       if (!w.solidAt(o.x, o.y + 4) && w.get(Math.floor(o.x / T), Math.floor((o.y + 4) / T)) !== 2) err(`${o.room}: ${o.type} floating at ${o.x / T - 0.5},${o.y / T - 1}`);

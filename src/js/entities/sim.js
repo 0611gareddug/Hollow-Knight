@@ -1,10 +1,12 @@
 // 적/투사체 시뮬레이션. 방장(또는 혼자)일 때만 권한 시뮬레이션, 참가자는 스냅샷 보간
 import { ENEMIES } from './enemies.js';
 import { BOSSES } from './bosses.js';
+import { ENEMIES2 } from './enemies2.js';
+import { BOSSES2 } from './bosses2.js';
 import { PROJ, makeProj } from './projectiles.js';
 import { cx, cy } from './common.js';
 
-export const DEFS = Object.assign({}, ENEMIES, BOSSES);
+export const DEFS = Object.assign({}, ENEMIES, BOSSES, ENEMIES2, BOSSES2);
 const KINDS = Object.keys(DEFS);
 const PTYPES = Object.keys(PROJ);
 const HP_SCALE = [1, 1, 1.6, 2.2, 2.8];

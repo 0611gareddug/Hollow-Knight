@@ -1,5 +1,5 @@
 // 키보드 / 게임패드 / 터치를 하나의 액션 입력으로 통합
-export const ACTIONS = ['left', 'right', 'up', 'down', 'jump', 'attack', 'dash', 'heal', 'map', 'pause'];
+export const ACTIONS = ['left', 'right', 'up', 'down', 'jump', 'attack', 'dash', 'heal', 'hook', 'map', 'pause'];
 
 import { settings, saveSettings } from './settings.js';
 
@@ -13,6 +13,7 @@ export const DEFAULT_KEYS = {
   attack: ['KeyX', 'KeyJ'],
   dash: ['KeyC', 'ShiftLeft'],
   heal: ['KeyV', 'KeyF'],
+  hook: ['KeyQ', 'Mouse0'],
   map: ['Tab', 'KeyM'],
   pause: ['Escape', 'KeyP'],
 };
@@ -80,6 +81,7 @@ class Input {
       const acts = KEYMAP[e.code];
       if (acts) {
         e.preventDefault();
+        if (acts.includes('hook')) this.hookMouse = false;
         if (!this.keys[e.code]) for (const a of acts) this.kbPress[a] = true;
         this.keys[e.code] = true;
         this.lastDevice = 'kb';
@@ -111,11 +113,16 @@ class Input {
       const acts = KEYMAP[code];
       if (acts) {
         e.preventDefault();
+        if (acts.includes('hook')) this.hookMouse = true;
         if (!this.keys[code]) for (const a of acts) this.kbPress[a] = true;
         this.keys[code] = true;
         this.lastDevice = 'kb';
       }
     }, true);
+    window.addEventListener('mousemove', (e) => {
+      this.mouseX = e.clientX;
+      this.mouseY = e.clientY;
+    }, { passive: true });
     window.addEventListener('mouseup', (e) => {
       if (e.button > 2) return;
       // 클릭 이벤트가 안 오는 경우(대상 요소가 사라짐)에도 차단이 남지 않게
@@ -148,6 +155,7 @@ class Input {
 
   setVirtual(action, on) {
     if (on && !this.virtual[action]) this.virtualPress[action] = true;
+    if (on && action === 'hook') this.hookMouse = false;
     this.virtual[action] = on;
     if (on) this.lastDevice = 'touch';
   }
@@ -175,13 +183,15 @@ class Input {
         down: b(13) || ay > 0.55,
         jump: b(0),
         attack: b(2),
-        dash: b(1) || b(5) || b(7),
+        dash: b(1) || b(7),
+        hook: b(5),
         heal: b(3) || b(4) || b(6),
         map: b(8),
         pause: b(9),
       };
       let any = false;
       for (const a of ACTIONS) if (padNow[a]) { now[a] = true; any = true; }
+      if (padNow.hook) this.hookMouse = false;
       if (any) this.lastDevice = 'pad';
     }
 

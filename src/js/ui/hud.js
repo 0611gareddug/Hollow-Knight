@@ -279,10 +279,10 @@ export class HUD {
     const g = this.g;
     const s = 40 * ui, gap = 5 * ui;
     const layout = [
-      ['up', 1, 0], ['left', 0, 1], ['down', 1, 1], ['right', 2, 1],
+      ['up', 1, 0], ['left', 0, 1], ['down', 1, 1], ['right', 2, 1], ['hook', 2, 0],
       ['jump', 3.4, 0], ['attack', 4.4, 0], ['dash', 3.4, 1], ['heal', 4.4, 1],
     ];
-    const NAME = { up: '위', down: '아래', left: '왼쪽', right: '오른쪽', jump: '점프', attack: '공격', dash: '대시', heal: '회복' };
+    const NAME = { up: '위', down: '아래', left: '왼쪽', right: '오른쪽', jump: '점프', attack: '공격', dash: '대시', heal: '회복', hook: '사슬' };
     const ARROW = { up: '▲', down: '▼', left: '◀', right: '▶' };
     const mw = 1.5 * s; // 마우스 그림 폭
     const bw = 5.4 * (s + gap) - gap + mw + gap * 3, bh = 2 * (s + gap) - gap + 24 * ui;

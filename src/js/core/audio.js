@@ -257,6 +257,16 @@ class Audio {
         this.nz('highpass', 1500, 1500, 0.08, 0.35 * v);
         this.osc('sine', 160, 60, 0.12, 0.35 * v);
         break;
+      case 'hookFire':
+        // 사슬이 풀려나가는 금속성 소리
+        this.nz('bandpass', 2400, 5200, 0.12, 0.18 * v, { q: 3 });
+        for (let i = 0; i < 4; i++) this.osc('square', 1800 + i * 260, 1700 + i * 260, 0.025, 0.025 * v, { delay: i * 0.022 });
+        break;
+      case 'hookHit':
+        this.osc('triangle', 1100 * p, 900, 0.08, 0.12 * v, { rev: 0.3 });
+        this.nz('highpass', 3000, 3000, 0.05, 0.25 * v);
+        this.osc('sine', 180, 80, 0.12, 0.25 * v);
+        break;
       case 'ui':
         this.osc('sine', 880 * (opt.pitch || 1), 880 * (opt.pitch || 1), 0.06, 0.06 * v);
         break;
@@ -483,6 +493,25 @@ const TRACKS = {
     bpm: 46, pad: 0.024, padCut: 500, bass: 0.065, arp: 0.04, arpRel: 2.5,
     arpProb: [0.55, 0, 0.15, 0, 0.35, 0, 0.15, 0.1],
     chords: [[49, 52, 56], [50, 54, 57], [47, 50, 54], [49, 52, 55]],
+  },
+  zone5: {
+    bpm: 72, pad: 0.018, padCut: 600, bass: 0.07, arp: 0.04, arpRel: 1.0,
+    arpProb: [0.7, 0.1, 0.4, 0.1, 0.6, 0.1, 0.4, 0.2],
+    drum: [0.5, 0, 0, 0.3, 0.5, 0, 0.3, 0], drumVol: 0.35, hat: [0, 0.4, 0, 0.4, 0, 0.4, 0, 0.6],
+    chords: [[45, 48, 52], [41, 45, 48], [43, 47, 50], [40, 44, 47]],
+    rev: 0.6,
+  },
+  zone6: {
+    bpm: 60, pad: 0.02, padCut: 1400, bass: 0.04, arp: 0.05, arpRel: 2.2, arpOct: 24,
+    arpProb: [0.8, 0.2, 0.5, 0.2, 0.7, 0.2, 0.5, 0.3],
+    chords: [[53, 57, 60, 64], [55, 59, 62, 66], [52, 55, 59, 62], [50, 54, 57, 60]],
+    rev: 0.95,
+  },
+  zone7: {
+    bpm: 44, pad: 0.026, padCut: 450, bass: 0.08, arp: 0.035, arpRel: 2.8,
+    arpProb: [0.45, 0, 0.1, 0, 0.3, 0, 0.1, 0.1],
+    drum: [0.6, 0, 0, 0, 0, 0, 0, 0], drumVol: 0.4,
+    chords: [[40, 41, 47], [40, 43, 46], [38, 41, 45], [40, 41, 44]],
   },
   boss: {
     bpm: 150, pad: 0.012, padCut: 900, bass: 0.08, ost: 0.03,

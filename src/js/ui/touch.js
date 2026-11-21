@@ -8,9 +8,10 @@ const DEFAULT = {
   attack: { x: 0.78, y: 0.82 },
   dash: { x: 0.8, y: 0.6 },
   heal: { x: 0.92, y: 0.5 },
+  hook: { x: 0.68, y: 0.7 },
 };
-const LABEL = { jump: '점프', attack: '공격', dash: '대시', heal: '회복' };
-const SIZE = { stick: 150, jump: 84, attack: 74, dash: 64, heal: 60 };
+const LABEL = { jump: '점프', attack: '공격', dash: '대시', heal: '회복', hook: '사슬' };
+const SIZE = { stick: 150, jump: 84, attack: 74, dash: 64, heal: 60, hook: 64 };
 
 export class TouchUI {
   constructor(root) {
@@ -38,7 +39,7 @@ export class TouchUI {
     r.appendChild(st);
     this.els.stick = st;
     this.knob = st.firstChild;
-    for (const id of ['jump', 'attack', 'dash', 'heal']) {
+    for (const id of ['jump', 'attack', 'dash', 'heal', 'hook']) {
       const b = document.createElement('div');
       b.className = 'tc-btn tc-' + id;
       b.textContent = LABEL[id];
@@ -83,7 +84,7 @@ export class TouchUI {
     st.addEventListener('pointerup', endStick);
     st.addEventListener('pointercancel', endStick);
 
-    for (const id of ['jump', 'attack', 'dash', 'heal']) {
+    for (const id of ['jump', 'attack', 'dash', 'heal', 'hook']) {
       const b = this.els[id];
       const down = (e) => {
         if (this.editing) return;
@@ -162,7 +163,12 @@ export class TouchUI {
   show(v) {
     this.visible = v;
     this.root.style.display = v ? 'block' : 'none';
-    if (!v) for (const a of ['left', 'right', 'up', 'down', 'jump', 'attack', 'dash', 'heal']) input.setVirtual(a, false);
+    if (!v) for (const a of ['left', 'right', 'up', 'down', 'jump', 'attack', 'dash', 'heal', 'hook']) input.setVirtual(a, false);
+  }
+
+  // 능력이 없으면 사슬 버튼 숨김
+  setHook(on) {
+    if (this.els.hook) this.els.hook.style.display = on || this.editing ? '' : 'none';
   }
 
   setEditing(on) {

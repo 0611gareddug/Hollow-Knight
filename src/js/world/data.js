@@ -6,6 +6,9 @@ export const ZONES = {
   2: { name: '침수된 회랑', sub: 'Drowned Gallery', music: 'zone2' },
   3: { name: '꺼진 성소', sub: 'Unlit Sanctum', music: 'zone3' },
   4: { name: '주홍 무대', sub: 'Scarlet Stage', music: 'zone2' },
+  5: { name: '녹슨 톱니 도시', sub: 'Rusted Cogworks', music: 'zone5' },
+  6: { name: '하늘 정원', sub: 'Sky Garden', music: 'zone6' },
+  7: { name: '재의 왕좌', sub: 'Throne of Ash', music: 'zone7' },
 };
 
 export const STORY = {
@@ -183,6 +186,7 @@ export const STORY = {
       build: (r) => {
         r.solid(0, 15, 44, 5).solid(15, 1, 14, 1);
         r.boss('keeper', 30, 14, 7, [[1, 10, 1, 5]]);
+        r.seal(40, 0, 3, 1, 'keeper'); // 2장으로 가는 봉인 (오른쪽 벽을 타고 위로)
       },
     },
     // ───────── 숨겨진 구역: 주홍 무대 ─────────
@@ -204,12 +208,138 @@ export const STORY = {
         r.shrine('mask3', 18, 19);
       },
     },
+    // ═════════════ 2장: 되살아난 불의 상층 ═════════════
+    // ───────── 구역 5: 녹슨 톱니 도시 ─────────
+    {
+      id: 'd1', zone: 5, name: '봉인된 승강로', x: 650, y: -46, w: 20, h: 46, dark: 0.5,
+      build: (r) => {
+        r.plat(10, 40, 6).plat(3, 35, 6).plat(10, 30, 6).plat(3, 25, 6).plat(10, 20, 6).plat(8, 14, 5);
+        r.solid(14, 9, 5, 1);
+        r.lamp(5, 44).lamp(16, 8);
+        r.sign(5, 44, '2장 · 되살아난 불의 상층');
+      },
+    },
+    {
+      id: 'd2', zone: 5, name: '톱니 광장', x: 670, y: -56, w: 40, h: 20, dark: 0.35,
+      build: (r) => {
+        r.solid(14, 1, 10, 2).solid(30, 1, 3, 4);
+        r.bench(5, 18).lamp(2, 18).lamp(10, 18);
+        r.shrine('hook', 33, 18);
+        r.anchor(21, 9).anchor(29, 7);
+        r.sign(36, 18, '{K} 불씨 사슬 : 고리·벽·적을 향해 발사', 'hook');
+        r.e('cogroller', 18, 18).e('sentry', 26, 18);
+      },
+    },
+    {
+      id: 'd3', zone: 5, name: '사슬 다리', x: 710, y: -60, w: 60, h: 24, dark: 0.45,
+      build: (r) => {
+        r.spike(10, 22, 35);
+        r.anchor(14, 14).anchor(22, 12).anchor(30, 14).anchor(38, 12);
+        r.solid(20, 1, 6, 2).solid(40, 1, 4, 3);
+        r.lamp(4, 22).lamp(55, 22);
+        r.sign(5, 22, '{K}를 누른 채 매달리기 · 떼거나 {J}로 날아오르기', 'hook');
+        r.e('wasp', 30, 6).e('wasp', 44, 5);
+      },
+    },
+    {
+      id: 'd4', zone: 5, name: '증기 굴뚝', x: 770, y: -90, w: 30, h: 54, dark: 0.5,
+      build: (r) => {
+        r.plat(4, 46, 6).plat(20, 38, 6).plat(2, 28, 6).plat(18, 18, 6);
+        r.anchor(15, 40).anchor(9, 31).anchor(16, 22).anchor(10, 13).anchor(20, 8);
+        r.solid(22, 9, 7, 1);
+        r.lamp(26, 52).lamp(25, 8);
+        r.e('wasp', 12, 30).e('wasp', 18, 12).e('sentry', 22, 37);
+      },
+    },
+    {
+      id: 'd5', zone: 5, name: '대장간 앞', x: 800, y: -94, w: 30, h: 14, dark: 0.3,
+      build: (r) => {
+        r.solid(12, 1, 6, 2);
+        r.bench(8, 12).shop(21, 12).lamp(3, 12).lamp(14, 12).lamp(27, 12);
+      },
+    },
+    {
+      id: 'd6', zone: 5, name: '꺼진 용광로', x: 830, y: -104, w: 44, h: 24, dark: 0.45, bossRoom: true,
+      build: (r) => {
+        r.solid(14, 1, 16, 2);
+        r.anchor(10, 9).anchor(22, 7).anchor(34, 9);
+        r.boss('smith', 28, 22, 7, [[1, 18, 1, 5], [42, 18, 1, 5]]);
+      },
+    },
+    // ───────── 구역 6: 하늘 정원 ─────────
+    {
+      id: 'e1', zone: 6, name: '구름 다리', x: 874, y: -104, w: 60, h: 26, dark: 0.15,
+      build: (r) => {
+        r.solid(0, 23, 8, 3).solid(52, 23, 8, 3).spike(8, 24, 44);
+        r.solid(15, 19, 5, 2).solid(28, 16, 4, 2).solid(41, 19, 5, 2);
+        r.anchor(11, 12).anchor(23, 9).anchor(35, 10).anchor(48, 12);
+        r.lamp(3, 22).lamp(56, 22);
+        r.e('gale', 20, 8).e('gale', 40, 7).e('wasp', 30, 12);
+      },
+    },
+    {
+      id: 'e2', zone: 6, name: '정원 쉼터', x: 934, y: -94, w: 28, h: 16, dark: 0.1,
+      build: (r) => {
+        r.solid(0, 13, 28, 3);
+        r.bench(8, 12).shop(19, 12).lamp(3, 12).lamp(13, 12).lamp(25, 12);
+      },
+    },
+    {
+      id: 'e3', zone: 6, name: '바람 탑', x: 962, y: -134, w: 30, h: 56, dark: 0.25,
+      build: (r) => {
+        r.solid(0, 53, 30, 3);
+        r.plat(3, 47, 6).plat(19, 38, 7).plat(2, 28, 6).plat(18, 19, 7);
+        r.anchor(14, 42).anchor(8, 32).anchor(15, 23).anchor(9, 14).anchor(20, 8);
+        r.solid(22, 9, 7, 1);
+        r.lamp(4, 52).lamp(25, 8);
+        r.e('gale', 15, 30).e('wasp', 10, 20).e('bloom', 22, 37);
+      },
+    },
+    {
+      id: 'e4', zone: 6, name: '바람의 옥좌', x: 992, y: -144, w: 46, h: 22, dark: 0.2, bossRoom: true,
+      build: (r) => {
+        r.solid(0, 19, 46, 3);
+        r.anchor(9, 8).anchor(23, 5).anchor(37, 8);
+        r.boss('queen', 30, 12, 7, [[1, 14, 1, 5], [44, 14, 1, 5]]);
+      },
+    },
+    // ───────── 구역 7: 재의 왕좌 ─────────
+    {
+      id: 'f1', zone: 7, name: '재 내리는 회랑', x: 1038, y: -140, w: 60, h: 20, dark: 0.55,
+      build: (r) => {
+        r.solid(0, 15, 60, 5);
+        r.empty(20, 15, 10, 4).spike(20, 18, 10).anchor(25, 8);
+        r.empty(40, 15, 8, 4).spike(40, 18, 8).anchor(44, 8);
+        r.lamp(3, 14).lamp(33, 14).lamp(57, 14);
+        r.e('ashknight', 14, 14).e('bloom', 34, 14).e('sentry', 52, 14).e('ashknight', 55, 14);
+      },
+    },
+    {
+      id: 'f2', zone: 7, name: '마지막 불씨', x: 1098, y: -138, w: 24, h: 16, dark: 0.3,
+      build: (r) => {
+        r.solid(0, 13, 24, 3);
+        r.bench(7, 12).lamp(3, 12).lamp(12, 12).lamp(20, 12);
+        r.sign(17, 12, '이 너머, 불을 삼킨 자가 기다린다');
+      },
+    },
+    {
+      id: 'f3', zone: 7, name: '재의 왕좌', x: 1122, y: -154, w: 52, h: 32, dark: 0.5, bossRoom: true,
+      build: (r) => {
+        r.solid(0, 29, 52, 3).solid(18, 1, 16, 2);
+        r.anchor(8, 14).anchor(19, 10).anchor(33, 10).anchor(44, 14);
+        r.boss('devourer', 34, 28, 7, [[1, 24, 1, 5]]);
+      },
+    },
   ],
   doors: [
     ['v', 40, 12, 5], ['v', 100, 12, 5], ['v', 134, 12, 5], ['v', 164, 43, 5], ['v', 204, 43, 5],
     ['v', 248, 43, 5], ['v', 298, 43, 5], ['v', 354, 43, 5], ['v', 354, 32, 4], ['v', 386, 69, 5],
     ['v', 422, 69, 5], ['v', 462, 53, 5], ['v', 502, 42, 5], ['v', 562, 42, 5], ['v', 592, 42, 5],
     ['h', 606, 20, 5], ['v', 626, 10, 5], ['v', 384, 28, 4],
+    // 2장
+    ['h', 666, 0, 3], ['v', 670, -42, 5], ['v', 710, -42, 5], ['v', 770, -42, 5], ['v', 800, -86, 5], ['v', 830, -86, 5],
+    ['v', 874, -86, 5], ['v', 934, -86, 5], ['v', 962, -86, 5], ['v', 992, -130, 5], ['v', 1038, -130, 5],
+    ['v', 1098, -130, 5], ['v', 1122, -130, 5],
   ],
 };
 
@@ -286,8 +416,9 @@ export const RUSH = {
       r.plat(5, 11, 6).plat(19, 8, 6).plat(33, 11, 6);
       r.spawn(6, 14);
       r.lamp(3, 14).lamp(40, 14);
+      r.anchor(12, 4).anchor(31, 4);
     },
   }],
   doors: [],
 };
-export const RUSH_ORDER = ['mother', 'bell', 'scarlet', 'keeper'];
+export const RUSH_ORDER = ['mother', 'bell', 'scarlet', 'keeper', 'smith', 'queen', 'devourer'];

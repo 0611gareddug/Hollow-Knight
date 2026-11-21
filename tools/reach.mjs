@@ -16,7 +16,7 @@ function mkInput() {
 function explore(def, abilities, start, opts = {}) {
   const w = new World(def);
   for (const id of opts.broken || []) w.breakWall(id);
-  const g = { world: w, abilities, allyNeedsHeal: () => false, healAlly() {}, onHeal() {}, onSlash() {} };
+  const g = { world: w, abilities, anchors: w.objects.filter((o) => o.type === 'anchor'), allyNeedsHeal: () => false, healAlly() {}, onHeal() {}, onSlash() {} };
   const key = (x, y) => Math.round(x / 16) + ',' + Math.round(y / 8);
   const seen = new Map();
   const queue = [];
@@ -48,6 +48,9 @@ function explore(def, abilities, start, opts = {}) {
       const wallMode = abilities.wall && Math.random() < 0.6;
       const zig = Math.random() < 0.5;
       const drop = Math.random() < 0.15;
+      // 사슬 정책: 공중에서 위쪽 앞으로 발사, 잠시 매달렸다 놓기 (여러 번)
+      const useHook = abilities.hook && Math.random() < 0.7;
+      let hookAt = 0.05 + Math.random() * 0.35, hookRel = 99, hookAim = Math.random() < 0.7 ? 'up' : 'none';
       let jHeldUntil = -1;
       let wallCd = 0;
       let lastWallJump = -1;
@@ -80,6 +83,23 @@ function explore(def, abilities, start, opts = {}) {
           // 벽 점프 후 다시 벽 쪽으로
         }
         inp.held.jump = t <= jHeldUntil;
+        if (useHook) {
+          if (t >= hookAt && t < hookAt + DT && !P.hook) {
+            inp.pressed.hook = true;
+            inp.held.hook = true;
+            hookRel = t + 0.25 + Math.random() * 1.1;
+            inp.held.up = hookAim === 'up';
+          }
+          if (t >= hookRel) {
+            inp.held.hook = false;
+            inp.held.up = false;
+            if (Math.random() < 0.5) { inp.pressed.jump = true; jHeldUntil = t + 0.1; }
+            hookRel = 99;
+            hookAt = t + 0.1 + Math.random() * 0.4;
+            hookAim = Math.random() < 0.7 ? 'up' : 'none';
+            if (Math.random() < 0.3) dir = dir === 0 ? 1 : dir;
+          }
+        }
         P.update(DT, inp, g);
         if (P.hazardT > 0 || w.rectHazard(P.x + 3, P.y + 4, P.w - 6, P.h - 4)) break;
         if (!P.grounded) {
@@ -148,6 +168,14 @@ if (which === 'story') {
   let r4 = explore(STORY, { dash: true, wall: true, djump: true }, { x: b2[0], y: b2[1] }, { broken: ['b2_secret'], maxNodes: 12000 });
   report('숨겨진 구역(벽 부순 뒤)', r4, ['h1', 'h2'], [['h1 조각', ...tile('h1', 3, 23)]]);
   // 보스 방 c6 → c5 벤치 복귀
+  // 2장: 봉인을 지나 승강로 → 톱니 광장 (사슬 없이)
+  const c6b = tile('d1', 5, 44);
+  let q0 = explore(STORY, { dash: true, wall: true, djump: true }, { x: c6b[0], y: c6b[1] }, { maxNodes: 14000 });
+  report('2장 승강로(사슬 없음)', q0, ['d1', 'd2'], [['d2 사슬 제단', ...tile('d2', 33, 18)]]);
+  if (q0.rooms.has('d4')) console.log('   ! 사슬 없이 d4 도달 (d3 사슬 다리 우회 가능)');
+  const d2 = tile('d2', 33, 18);
+  let q1 = explore(STORY, { dash: true, wall: true, djump: true, hook: true }, { x: d2[0], y: d2[1] }, { maxNodes: 16000, rollouts: 44 });
+  report('2장 전체(사슬)', q1, ['d3', 'd4', 'd5', 'd6', 'e1', 'e2', 'e3', 'e4', 'f1', 'f2', 'f3']);
   const c6 = tile('c6', 20, 14);
   let r5 = explore(STORY, { dash: true, wall: true, djump: true }, { x: c6[0], y: c6[1] });
   report('c6→c5 복귀', r5, ['c5']);

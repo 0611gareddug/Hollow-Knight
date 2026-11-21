@@ -5,7 +5,7 @@ const KEY = 'lf_world_v1';
 
 export function newWorldSave() {
   return {
-    abilities: { dash: false, wall: false, djump: false },
+    abilities: { dash: false, wall: false, djump: false, hook: false },
     bosses: {}, // kind -> true
     broken: {}, // breakable id -> true
     explored: {}, // room id -> true

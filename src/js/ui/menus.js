@@ -14,13 +14,13 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 
 const KEYS = {
   kb: { J: 'Z', A: 'X', D: 'C', H: 'V', U: '↑', DN: '↓', LR: '← →' },
-  pad: { J: 'Ⓐ', A: 'Ⓧ', D: 'Ⓑ', H: 'Ⓨ', U: '↑', DN: '↓', LR: '스틱' },
-  touch: { J: '[점프]', A: '[공격]', D: '[대시]', H: '[회복]', U: '조이스틱↑', DN: '조이스틱↓', LR: '조이스틱' },
+  pad: { K: 'RB', J: 'Ⓐ', A: 'Ⓧ', D: 'Ⓑ', H: 'Ⓨ', U: '↑', DN: '↓', LR: '스틱' },
+  touch: { K: '[사슬]', J: '[점프]', A: '[공격]', D: '[대시]', H: '[회복]', U: '조이스틱↑', DN: '조이스틱↓', LR: '조이스틱' },
 };
 
 const ACTION_NAME = {
   left: '왼쪽', right: '오른쪽', up: '위 (앉기·위 베기)', down: '아래 (아래 베기)', jump: '점프', attack: '공격',
-  dash: '대시', heal: '회복 (길게)', map: '지도', pause: '일시정지',
+  dash: '대시', heal: '회복 (길게)', hook: '불씨 사슬', map: '지도', pause: '일시정지',
 };
 const SPECIAL = {
   ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Space: 'Space', Tab: 'Tab', Escape: 'Esc',
@@ -61,8 +61,8 @@ export class Menus {
 
   keyText(str) {
     const dev = input.lastDevice === 'pad' ? 'pad' : this.isTouch() ? 'touch' : 'kb';
-    const kb = { J: kbName('jump'), A: kbName('attack'), D: kbName('dash'), H: kbName('heal'), U: kbName('up'), DN: kbName('down'), LR: kbName('left') + ' ' + kbName('right') };
-    return String(str).replace(/\{(J|A|D|H|U|DN|LR)\}/g, (_, k) => (dev === 'kb' ? kb : KEYS[dev])[k]);
+    const kb = { K: kbName('hook'), J: kbName('jump'), A: kbName('attack'), D: kbName('dash'), H: kbName('heal'), U: kbName('up'), DN: kbName('down'), LR: kbName('left') + ' ' + kbName('right') };
+    return String(str).replace(/\{(K|J|A|D|H|U|DN|LR)\}/g, (_, k) => (dev === 'kb' ? kb : KEYS[dev])[k]);
   }
 
   _screen(html, cls = '') {
@@ -212,7 +212,8 @@ export class Menus {
           <tr><td>점프</td><td>${kbBoth('jump')}</td><td>Ⓐ</td><td>점프</td></tr>
           <tr><td>공격</td><td>${kbBoth('attack')}</td><td>Ⓧ</td><td>공격</td></tr>
           <tr><td>위·아래 베기</td><td>${kbName('up')} / ${kbName('down')} + 공격</td><td>스틱 + Ⓧ</td><td>조이스틱 + 공격</td></tr>
-          <tr><td>대시</td><td>${kbBoth('dash')}</td><td>Ⓑ · RB · RT</td><td>대시</td></tr>
+          <tr><td>대시</td><td>${kbBoth('dash')}</td><td>Ⓑ · RT</td><td>대시</td></tr>
+          <tr><td>불씨 사슬 (2장)</td><td>${kbBoth('hook')} (마우스는 커서 방향)</td><td>RB + 스틱 방향</td><td>사슬 + 조이스틱</td></tr>
           <tr><td>회복 (길게)</td><td>${kbBoth('heal')}</td><td>Ⓨ · LB · LT</td><td>회복</td></tr>
           <tr><td>앉기 · 상점</td><td>${kbName('up')}</td><td>↑</td><td>조이스틱 ↑</td></tr>
           <tr><td>지도</td><td>${kbBoth('map')}</td><td>Back</td><td>지도</td></tr>
@@ -857,15 +858,18 @@ export class Menus {
     });
   }
 
-  showEnding(playTime, onContinue) {
+  showEnding(playTime, ch, onContinue) {
+    const lines = ch === 2
+      ? ['재를 삼킨 자의 배 속에서,', '삼켜졌던 등불들이 하나둘 빠져나왔다.', '왕국의 하늘에 처음으로 불빛이 가득 찼다.']
+      : ['마지막 등불지기가 쓰러지고,', '꺼져가던 불씨가 다시 숨을 쉬었다.', '가라앉은 왕국에, 아주 작은 빛이 돌아왔다.'];
     const s = this._screen(`
       <div class="ending">
-        <p class="l1">마지막 등불지기가 쓰러지고,</p>
-        <p class="l2">꺼져가던 불씨가 다시 숨을 쉬었다.</p>
-        <p class="l3">가라앉은 왕국에, 아주 작은 빛이 돌아왔다.</p>
+        <p class="l1">${lines[0]}</p>
+        <p class="l2">${lines[1]}</p>
+        <p class="l3">${lines[2]}</p>
         <h1>LANTERNFALL</h1>
-        <p class="sub">플레이 시간 ${fmtTime(playTime)}</p>
-        <p class="sub">숨겨진 무대에서 주홍 광대가 당신을 기다리고 있을지도…</p>
+        <p class="sub">${ch === 2 ? '2장 완료 · ' : ''}플레이 시간 ${fmtTime(playTime)}</p>
+        <p class="sub">${ch === 2 ? '새 꾸미기가 열렸습니다. 보스 러시에서 일곱 보스에게 도전해 보세요.' : '제단의 봉인이 풀렸습니다 — 오른쪽 벽을 타고 위로 오르면 <b>2장: 되살아난 불의 상층</b>이 시작됩니다.'}</p>
         <div class="row"><button data-a="cont" class="primary">계속 탐험하기</button><button data-a="title">타이틀로</button></div>
       </div>`, 'ending-screen');
     s.addEventListener('click', (e) => {

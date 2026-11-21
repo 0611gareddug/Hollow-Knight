@@ -94,6 +94,31 @@ export function drawObject(ctx, o, time, pal, state) {
       ctx.stroke();
       break;
     }
+    case 'anchor': {
+      // 사슬 고리: 공중에 떠 있는 등불 고리
+      const b = Math.sin(time * 2 + x * 0.1) * 2;
+      ctx.strokeStyle = 'rgba(60,50,40,0.8)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 14 + b);
+      ctx.lineTo(x, y - 40 + b);
+      ctx.stroke();
+      ctx.strokeStyle = '#2a2016';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(x, y + b, 10, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(255,190,100,${0.7 + Math.sin(time * 4 + x) * 0.25})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y + b, 10, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#ffe2a8';
+      ctx.beginPath();
+      ctx.arc(x, y + b, 3, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
     case 'sign': {
       ctx.fillStyle = '#0c0f10';
       ctx.fillRect(x - 10, y - 22, 20, 22);

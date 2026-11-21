@@ -39,6 +39,16 @@ class RoomBuilder {
   lamp(x, y, s = 1) { this._obj('lamp', x, y, { s }); return this; }
   sign(x, y, text, req) { this._obj('sign', x, y, { text, req }); return this; }
   pickup(kind, x, y, id, amount = 0) { this._obj('pickup', x, y, { kind, id, amount }); return this; }
+  // 사슬 고리 (중심 좌표)
+  anchor(x, y) {
+    this.w.objects.push({ type: 'anchor', room: this.r.id, x: (this.r.x + x + 0.5) * TILE, y: (this.r.y + y + 0.5) * TILE });
+    return this;
+  }
+  // 특정 보스를 잡기 전까지 닫혀 있는 봉인
+  seal(x, y, w, h, req) {
+    this.w.seals.push({ x: this.r.x + x, y: this.r.y + y, w, h, req });
+    return this;
+  }
   shrine(ability, x, y) { this._obj('shrine', x, y, { ability, id: 'shrine_' + ability }); return this; }
   spawn(x, y) { this.w.spawn = { x: (this.r.x + x + 0.5) * TILE, y: (this.r.y + y + 1) * TILE, room: this.r.id }; return this; }
   finish(x, y, w, h) {
@@ -65,7 +75,13 @@ export class World {
     this.breakables = [];
     this.spawn = null;
     this.finish = null;
-    const rooms = def.rooms;
+    this.seals = [];
+    // 음수 좌표(위쪽 세계)를 쓰는 방이 있으면 전체를 아래로 밀어 0부터 시작하게 함
+    let minY = 0;
+    for (const r of def.rooms) minY = Math.min(minY, r.y);
+    this.oy = -minY;
+    const rooms = def.rooms.map((r) => Object.assign({}, r, { y: r.y + this.oy }));
+    def = Object.assign({}, def, { doors: (def.doors || []).map(([d, x, y, len]) => [d, x, y + this.oy, len]) });
     let W = 0, H = 0;
     for (const r of rooms) {
       W = Math.max(W, r.x + r.w);

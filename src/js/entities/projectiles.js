@@ -27,6 +27,20 @@ export const PROJ = {
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(Math.atan2(p.vy, p.vx));
+      if (p.ex.feather) {
+        ctx.fillStyle = '#eef2f5';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 11, 3.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#8aa0b4';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-11, 0);
+        ctx.lineTo(11, 0);
+        ctx.stroke();
+        ctx.restore();
+        return;
+      }
       ctx.fillStyle = '#1b2a1f';
       ctx.beginPath();
       ctx.moveTo(10, 0);
@@ -299,6 +313,21 @@ Object.assign(PROJ, {
     },
     hit: (p, b) => circRect(p.x, p.y, 8, b),
     draw(ctx, p, time) {
+      if (p.ex.steam || p.ex.ash) {
+        ctx.fillStyle = p.ex.steam ? 'rgba(160,240,225,0.45)' : 'rgba(120,90,80,0.5)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = p.ex.steam ? '#dffcf6' : '#3a2a24';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 6.5, 0, Math.PI * 2);
+        ctx.fill();
+        if (p.ex.ash) {
+          ctx.fillStyle = '#ff7a3a';
+          ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
+        }
+        return;
+      }
       ctx.fillStyle = '#e8d9b0';
       ctx.beginPath();
       ctx.moveTo(p.x, p.y - 10);
@@ -318,7 +347,7 @@ Object.assign(PROJ, {
       const w = p.ex.warn;
       if (p.t < w) {
         const k = p.t / w;
-        ctx.fillStyle = `rgba(120,240,220,${0.25 + k * 0.5})`;
+        ctx.fillStyle = p.ex.steam ? `rgba(230,235,235,${0.25 + k * 0.5})` : `rgba(120,240,220,${0.25 + k * 0.5})`;
         ctx.beginPath();
         ctx.ellipse(p.x, p.y - 2, 20, 4 + k * 3, 0, 0, Math.PI * 2);
         ctx.fill();
@@ -456,6 +485,145 @@ Object.assign(PROJ, {
           ctx.fill();
         }
       }
+    },
+  },
+});
+
+// ───── 2장 투사체 ─────
+Object.assign(PROJ, {
+  // 포자: 천천히 떠오름
+  spore: {
+    light: 50, glow: 'amber',
+    update(p, dt, S) {
+      p.vx *= 1 - 0.6 * dt;
+      p.x += (p.vx + Math.sin(p.t * 3 + p.id) * 25) * dt;
+      p.y += p.vy * dt;
+      return !S.world.solidAt(p.x, p.y - 6);
+    },
+    hit: (p, b) => p.t > 0.3 && circRect(p.x, p.y, 6, b),
+    draw(ctx, p, time) {
+      const a = Math.min(1, (p.life - p.t) * 2);
+      ctx.fillStyle = `rgba(255,150,70,${0.35 * a})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = `rgba(255,220,150,${a})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4 + Math.sin(time * 8 + p.id) * 0.8, 0, Math.PI * 2);
+      ctx.fill();
+    },
+  },
+  // 돌풍: 피해 없이 밀어냄
+  gust: {
+    update(p, dt, S) {
+      p.x += p.vx * dt;
+      return !S.world.solidAt(p.x + Math.sign(p.vx) * 20, p.y);
+    },
+    hit: () => false,
+    push: (p, b) => (rr({ x: p.x - 22, y: p.y - 50, w: 44, h: 100 }, b) ? { x: Math.sign(p.vx) * 620, y: 0 } : null),
+    draw(ctx, p, time) {
+      const a = Math.min(1, (p.life - p.t) * 2, p.t * 4);
+      ctx.strokeStyle = `rgba(220,240,255,${0.55 * a})`;
+      ctx.lineWidth = 2;
+      const d = Math.sign(p.vx);
+      for (let i = 0; i < 6; i++) {
+        const yy = p.y - 45 + i * 18;
+        const ox = ((time * 300 + i * 37) % 40) * d;
+        ctx.beginPath();
+        ctx.moveTo(p.x - 20 * d + ox * 0.3, yy);
+        ctx.quadraticCurveTo(p.x + ox * 0.5, yy - 6, p.x + 22 * d, yy);
+        ctx.stroke();
+      }
+    },
+  },
+  // 빨아들이는 소용돌이: 피해 없이 중심으로 당김
+  vortex: {
+    light: 120, glow: 'red',
+    update: () => true,
+    hit: () => false,
+    push: (p, b) => {
+      if (p.t < 0.3) return null;
+      const bx = b.x + b.w / 2, dx = p.x - bx;
+      if (Math.abs(dx) > 520 || Math.abs(dx) < 70) return null;
+      return { x: Math.sign(dx) * 210, y: 0 };
+    },
+    draw(ctx, p, time) {
+      const a = Math.min(1, (p.life - p.t) * 2, p.t * 3);
+      for (let i = 0; i < 4; i++) {
+        const r = 520 - ((time * 260 + i * 130) % 520);
+        ctx.strokeStyle = `rgba(150,90,80,${0.22 * a * (r / 520)})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    },
+  },
+  // 던지는 창
+  spear: {
+    update(p, dt, S) {
+      p.x += p.vx * dt;
+      return !S.world.solidAt(p.x + Math.sign(p.vx) * 22, p.y);
+    },
+    hit: (p, b) => rr({ x: p.x - 18, y: p.y - 3, w: 36, h: 6 }, b),
+    draw(ctx, p) {
+      const d = Math.sign(p.vx);
+      ctx.fillStyle = '#9a8f80';
+      ctx.fillRect(p.x - 24, p.y - 1.5, 44, 3);
+      ctx.fillStyle = '#e0d6c0';
+      ctx.beginPath();
+      ctx.moveTo(p.x + 20 * d, p.y - 4);
+      ctx.lineTo(p.x + 30 * d, p.y);
+      ctx.lineTo(p.x + 20 * d, p.y + 4);
+      ctx.fill();
+    },
+  },
+  // 굴러오는 톱니 (점프로 넘김, 벽에서 한 번 튕김)
+  cog: {
+    update(p, dt, S) {
+      if (p.ex.b == null) p.ex.b = 0;
+      p.x += p.vx * dt;
+      if (S.world.solidAt(p.x + Math.sign(p.vx) * 18, p.y)) {
+        p.ex.b++;
+        if (p.ex.b > 1) return false;
+        p.vx = -p.vx;
+        S.ev('slam', { x: p.x, y: p.y, m: 3 });
+      }
+      return true;
+    },
+    hit: (p, b) => circRect(p.x, p.y, 14, b),
+    draw(ctx, p, time) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(time * 10 * Math.sign(p.vx));
+      ctx.fillStyle = '#8a5530';
+      ctx.beginPath();
+      for (let i = 0; i < 20; i++) {
+        const a = (i / 20) * Math.PI * 2, r = i % 2 ? 18 : 14;
+        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+      ctx.fill();
+      ctx.fillStyle = '#2a1e16';
+      ctx.beginPath();
+      ctx.arc(0, 0, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    },
+  },
+  // 거대한 주먹 착지
+  fist: {
+    update: () => true,
+    hit: (p, b) => p.t < 0.14 && rr({ x: p.x - 34, y: p.y - 64, w: 68, h: 64 }, b),
+    draw(ctx, p) {
+      const k = p.t / p.life;
+      ctx.globalAlpha = 1 - k;
+      ctx.fillStyle = '#221a16';
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y - 28 + k * 10, 36, 30, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,120,60,0.5)';
+      ctx.fillRect(p.x - 30, p.y - 6, 60, 4);
+      ctx.globalAlpha = 1;
     },
   },
 });

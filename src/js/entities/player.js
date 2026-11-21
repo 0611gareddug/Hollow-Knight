@@ -4,6 +4,7 @@ import { audio } from '../core/audio.js';
 import { fx } from '../render/fx.js';
 import { profile, looks } from '../core/settings.js';
 import { slashRGB } from '../render/drawPlayer.js';
+import { isSolidT, T_SPIKE } from '../world/tiles.js';
 
 export const PH = {
   RUN: 330,
@@ -88,6 +89,11 @@ export class Player {
     this.ember = 0;
     this.airT = 0;
     this.trail = [];
+    this.hook = null;
+    this.hookCD = 0;
+    this.hookMiss = null;
+    this.extVx = 0;
+    this.hookBuf = 0;
   }
 
   get cx() { return this.x + this.w / 2; }
@@ -159,6 +165,24 @@ export class Player {
     const dirX = (right ? 1 : 0) - (left ? 1 : 0);
     const control = this.hurtT <= 0;
     if (this.hurtT > 0) this.hurtT -= dt;
+
+    // ── 불씨 사슬 ──
+    if (this.hookCD > 0) this.hookCD -= dt;
+    if (this.hookMiss) {
+      this.hookMiss.t -= dt;
+      if (this.hookMiss.t <= 0) this.hookMiss = null;
+    }
+    if (this.hook) {
+      if (this._hookStep(dt, inp, g, dirX)) return;
+    } else {
+      // 입력 여유: 쿨다운 중에 누른 사슬도 곧바로 발사
+      if (inp.pressed.hook) this.hookBuf = 0.15;
+      else if (this.hookBuf > 0) this.hookBuf -= dt;
+      if (control && this.hookBuf > 0 && inp.held.hook !== false && ab.hook && this.hookCD <= 0 && this.dashT <= 0) {
+        this.hookBuf = 0;
+        this._fireHook(inp, g, dirX);
+      }
+    }
 
     // 회복(집중)
     const canFocus = this.grounded && this.ember >= PH.EMBER_COST && (this.hp < this.maxHp || g.allyNeedsHeal(this)) && this.atkT <= 0 && this.dashT <= 0;
@@ -347,6 +371,144 @@ export class Player {
     } else this.safeT = 0;
   }
 
+  // 사슬 발사: 조준 방향으로 고리 > 적 > 벽 순서로 목표 선택
+  hookAim(inp, g, dirX) {
+    const ox = this.cx + this.facing * 4, oy = this.y + 12;
+    let ax, ay;
+    const m = inp.hookMouse && g.mouseWorld ? g.mouseWorld() : null;
+    if (m) {
+      ax = m.x - ox;
+      ay = m.y - oy;
+    } else {
+      ax = dirX;
+      ay = (inp.held.down ? 1 : 0) - (inp.held.up ? 1 : 0);
+      if (!ax && !ay) {
+        ax = this.facing;
+        ay = -1;
+      } else if (!ay) ay = -0.75;
+    }
+    const d = Math.hypot(ax, ay) || 1;
+    return { ox, oy, ax: ax / d, ay: ay / d, wide: !m };
+  }
+
+  _fireHook(inp, g, dirX) {
+    const a = this.hookAim(inp, g, dirX);
+    const tg = findHookTarget(a.ox, a.oy, a.ax, a.ay, g, a.wide);
+    this.hookCD = 0.18;
+    audio.play('hookFire');
+    if (!tg) {
+      this.hookMiss = { x: a.ox + a.ax * 300, y: a.oy + a.ay * 300, t: 0.16 };
+      return;
+    }
+    const dist = Math.hypot(tg.x - a.ox, tg.y - a.oy);
+    this.hook = Object.assign({ phase: 'fly', t: 0, travel: Math.max(0.04, dist / 2600), len: dist }, tg);
+  }
+
+  _hookStep(dt, inp, g, dirX) {
+    const H = this.hook;
+    const W = g.world;
+    H.t += dt;
+    if (H.type === 'enemy') {
+      const ep = g.enemyPos ? g.enemyPos(H.eid) : null;
+      if (!ep) {
+        this.hook = null;
+        return false;
+      }
+      H.x = ep.x;
+      H.y = ep.y;
+    }
+    const hx = this.cx, hy = this.y + 12;
+    if (H.phase === 'fly') {
+      if (H.t < H.travel) return false; // 사슬이 날아가는 동안은 평소처럼 움직임
+      H.phase = H.type === 'enemy' ? 'pull' : 'swing';
+      H.t = 0;
+      H.len = Math.max(52, Math.hypot(H.x - hx, H.y - hy));
+      this.airDash = true;
+      this.djUsed = false;
+      this.jumping = false;
+      this.dashT = 0;
+      audio.play('hookHit');
+      fx.burst(H.x, H.y, 8, { kind: 'spark', color: '#ffd58a', smin: 150, smax: 380, grav: 0, add: true, lmin: 0.1, lmax: 0.25 });
+    }
+    if (H.phase === 'pull') {
+      // 적에게 끌려가며 베기
+      const dx = H.x - hx, dy = H.y - hy, d = Math.hypot(dx, dy) || 1;
+      if (d < 36 || H.t > 0.45) {
+        if (g.hookStrike) g.hookStrike(H.eid, this);
+        this.hook = null;
+        this.vy = -480;
+        this.vx = -this.facing * 160;
+        this.recoilT = 0.12;
+        this.invul = Math.max(this.invul, 0.35);
+        this.airDash = true;
+        this.djUsed = false;
+        return true;
+      }
+      this.vx = (dx / d) * 1050;
+      this.vy = (dy / d) * 1050;
+      if (Math.abs(dx) > 4) this.facing = Math.sign(dx);
+      this.invul = Math.max(this.invul, 0.12);
+      W.moveBody(this, this.vx * dt, this.vy * dt);
+      this.grounded = false;
+      this.anim = 'dash';
+      this.trail.push({ x: this.x, y: this.y, t: 0.18, f: this.facing });
+      return true;
+    }
+    // ── 매달리기 / 흔들기 ──
+    if (!inp.held.hook) {
+      this.hook = null;
+      if (this.vy < 0) this.vy *= 1.1;
+      this.hookCD = 0;
+      return false;
+    }
+    if (inp.pressed.jump) {
+      this.hook = null;
+      this.vy = Math.min(this.vy - 120, -520);
+      this.vx *= 1.05;
+      this.jumpBuf = 0;
+      this.jumping = false;
+      this.djUsed = false;
+      this.airDash = true;
+      audio.play('jump');
+      fx.burst(this.cx, this.y + this.h, 6, { kind: 'dust', color: '#ffd58a', smin: 60, smax: 160, grav: 0 });
+      W.moveBody(this, this.vx * dt, this.vy * dt);
+      return true;
+    }
+    H.len = Math.max(54, H.len - 330 * dt); // 감아올림
+    this.vx += dirX * 1300 * dt;
+    this.vy += PH.G * 0.85 * dt;
+    this.vx *= 1 - 0.12 * dt;
+    const sp = Math.hypot(this.vx, this.vy);
+    if (sp > 1150) {
+      this.vx *= 1150 / sp;
+      this.vy *= 1150 / sp;
+    }
+    const res = W.moveBody(this, this.vx * dt, this.vy * dt);
+    if (res.hitX) this.vx *= -0.15;
+    if (res.hitY) this.vy = 0;
+    // 줄 길이 제약
+    const cx = this.cx, cy = this.y + 12;
+    const dx = cx - H.x, dy = cy - H.y, d = Math.hypot(dx, dy) || 1;
+    if (d > H.len) {
+      const nx = dx / d, ny = dy / d;
+      W.moveBody(this, H.x + nx * H.len - cx, H.y + ny * H.len - cy);
+      const vr = this.vx * nx + this.vy * ny;
+      if (vr > 0) {
+        this.vx -= vr * nx;
+        this.vy -= vr * ny;
+      }
+    }
+    this.grounded = this.vy >= 0 && W.grounded(this);
+    if (this.grounded) {
+      this.airDash = true;
+      this.djUsed = false;
+    }
+    if (Math.abs(this.vx) > 30) this.facing = Math.sign(this.vx);
+    this.anim = 'swing';
+    if (Math.random() < 0.25) fx.add({ kind: 'glow', x: H.x, y: H.y, vx: (Math.random() - 0.5) * 60, vy: 40, life: 0.4, size: 2, color: '#ffb347', grav: 200, drag: 1, add: true });
+    return true;
+  }
+
   _jump(v, hold) {
     this.vy = -v;
     this.jumpV = v;
@@ -395,7 +557,11 @@ export class Player {
         }
       }
     }
-    const res = W.moveBody(this, this.vx * dt, this.vy * dt, this.dropT > 0);
+    if (this.extVx) {
+      this.extVx *= Math.exp(-5 * dt);
+      if (Math.abs(this.extVx) < 4) this.extVx = 0;
+    }
+    const res = W.moveBody(this, (this.vx + this.extVx) * dt, this.vy * dt, this.dropT > 0);
     if (res.hitY < 0) {
       this.vy = 0;
       this.jumping = false;
@@ -443,6 +609,7 @@ export class Player {
   // 피격. true면 실제로 맞음
   hurt(dmg, srcX) {
     if (this.invul > 0 || this.dead || this.downed || this.hazardT > 0 || this.sitting) return false;
+    this.hook = null;
     this.hp -= dmg;
     this.invul = 1.5;
     this.hurtT = 0.22;
@@ -497,7 +664,50 @@ export class Player {
       ad: this.atkDir, ak: Math.round(Math.max(0, this.atkT) * 1000) / 1000,
       hp: this.hp, mh: this.maxHp, inv: this.invul > 0 ? 1 : 0,
       rm: room, cl: this.cloak, mk: this.mask, an: this.antenna, ac: this.acc, sw: this.sword, sc: this.slashC, lc: this.lightC, rv: Math.round(this.revive * 100) / 100,
+      hk: this.hook ? [Math.round(this.hook.x), Math.round(this.hook.y), this.hook.phase === 'fly' ? Math.round(Math.min(1, this.hook.t / this.hook.travel) * 100) / 100 : 1] : 0,
       dn: this.downed ? 1 : 0, hz: this.hazardT > 0 ? 1 : 0, em: this.ember,
     };
   }
+}
+
+// 사슬 목표 찾기: 조준 원뿔 안의 고리 → 적 → 조준선 위 벽 (가시 제외)
+export function findHookTarget(ox, oy, ax, ay, g, wide = false) {
+  // 마우스는 정밀 조준, 키보드·패드·터치는 넓은 자동 조준
+  const cone = wide ? 1.05 : 0.6, econe = wide ? 0.75 : 0.42;
+  const W = g.world;
+  let best = null, bs = 1e9;
+  for (const a of g.anchors || []) {
+    const dx = a.x - ox, dy = a.y - oy, d = Math.hypot(dx, dy);
+    if (d > 400 || d < 24) continue;
+    const ang = Math.acos(clamp((dx * ax + dy * ay) / d, -1, 1));
+    if (ang > cone) continue;
+    if (!W.lineClear(ox, oy, a.x, a.y)) continue;
+    const sc = ang * 320 + d * 0.25;
+    if (sc < bs) {
+      bs = sc;
+      best = { type: 'anchor', x: a.x, y: a.y };
+    }
+  }
+  if (g.hookEnemies)
+    for (const e of g.hookEnemies()) {
+      const ex = e.x + e.w / 2, ey = e.y + e.h / 2;
+      const dx = ex - ox, dy = ey - oy, d = Math.hypot(dx, dy);
+      if (d > 340 || d < 24) continue;
+      const ang = Math.acos(clamp((dx * ax + dy * ay) / d, -1, 1));
+      if (ang > econe) continue;
+      if (!W.lineClear(ox, oy, ex, ey)) continue;
+      const sc = ang * 320 + d * 0.25 + 30;
+      if (sc < bs) {
+        bs = sc;
+        best = { type: 'enemy', eid: e.id, x: ex, y: ey };
+      }
+    }
+  if (best) return best;
+  for (let t = 18; t <= 330; t += 6) {
+    const x = ox + ax * t, y = oy + ay * t;
+    const tile = W.get(Math.floor(x / TILE), Math.floor(y / TILE));
+    if (tile === T_SPIKE) return null;
+    if (isSolidT(tile)) return { type: 'wall', x: ox + ax * (t - 5), y: oy + ay * (t - 5) };
+  }
+  return null;
 }
