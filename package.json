@@ -1,0 +1,32 @@
+{
+  "name": "hollow-knight",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "dev": "node tools/build.mjs --dev",
+    "check": "node tools/check-world.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0611gareddug/Hollow-Knight.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/0611gareddug/Hollow-Knight/issues"
+  },
+  "homepage": "https://github.com/0611gareddug/Hollow-Knight#readme",
+  "devDependencies": {
+    "clean-css-cli": "^5.6.3",
+    "esbuild": "^0.28.2",
+    "javascript-obfuscator": "^5.10.1",
+    "peer": "^1.0.2"
+  },
+  "dependencies": {
+    "peerjs": "^1.5.5"
+  },
+  "type": "module"
+}
