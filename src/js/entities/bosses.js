@@ -2,7 +2,7 @@
 import { go, groundPhys, cx, cy, rectFront } from './common.js';
 import { clamp, rand, pick, TILE } from '../core/util.js';
 
-const body = (e, s = 6) => ({ x: e.x + s, y: e.y + s, w: e.w - s * 2, h: e.h - s * 2 });
+const body = (e, s0 = 6) => { const s = s0 + 4; return { x: e.x + s, y: e.y + s + 4, w: e.w - s * 2, h: e.h - s * 2 - 4 }; };
 const ff = (ctx, e, c) => (ctx.fillStyle = e.fl > 0 ? '#ffffff' : c);
 const roomL = (S) => S.room.px + TILE * 1.5;
 const roomR = (S) => S.room.px + S.room.pw - TILE * 1.5;
@@ -49,7 +49,7 @@ export const BOSSES = {
         case 'idle': {
           if (p) e.facing = Math.sign(p.cx - cx(e)) || 1;
           e.vx = e.facing * 45;
-          if (e.t > (P2 ? 0.55 : 0.95)) {
+          if (e.t > (P2 ? 0.7 : 1.05)) {
             const d = p ? Math.abs(p.cx - cx(e)) : 0;
             const mins = S.count('crawler');
             const r = Math.random();
@@ -63,19 +63,19 @@ export const BOSSES = {
         }
         case 'cwind':
           e.vx = 0;
-          if (p && e.t < 0.4) e.facing = Math.sign(p.cx - cx(e)) || 1;
-          if (e.t > 0.7) { go(e, 'charge'); e.ex.lastFire = cx(e); S.ev('sfx', { s: 'dash', x: cx(e), y: cy(e) }); }
+          if (p && e.t < 0.45) e.facing = Math.sign(p.cx - cx(e)) || 1;
+          if (e.t > 0.95) { go(e, 'charge'); e.ex.lastFire = cx(e); S.ev('sfx', { s: 'dash', x: cx(e), y: cy(e) }); }
           break;
         case 'charge':
-          e.vx = e.facing * (P2 ? 700 : 540);
+          e.vx = e.facing * (P2 ? 600 : 470);
           if (P2 && Math.abs(cx(e) - e.ex.lastFire) > 50) {
             e.ex.lastFire = cx(e);
-            S.proj('fire', cx(e) - e.facing * 50, e.y + e.h, 0, 0, { life: 1.7 });
+            // (삭제) 돌진 경로 불길 장판
           }
           break;
         case 'stun':
           e.vx = 0;
-          if (e.t > 0.65) { e.facing *= -1; go(e, 'idle'); }
+          if (e.t > 0.85) { e.facing *= -1; go(e, 'idle'); }
           break;
         case 'bwind':
           e.vx = 0;
@@ -91,11 +91,11 @@ export const BOSSES = {
             go(e, 'slam');
             S.ev('slam', { x: cx(e), y: e.y + e.h, m: 14 });
             const L = roomL(S), R = roomR(S);
-            const n = P2 ? 7 : 5;
+            const n = P2 ? 6 : 4;
             const seg = (R - L) / n;
             for (let i = 0; i < n; i++) {
               const x = L + seg * i + rand(10, seg - 10);
-              S.proj('rockwarn', x, e.y + e.h, 0, 0, { life: 0.8 + i * 0.05 });
+              S.proj('rockwarn', x, e.y + e.h, 0, 0, { life: 1.15 + i * 0.08 });
             }
           }
           break;
@@ -107,6 +107,8 @@ export const BOSSES = {
       if (e.st === 'charge' && (res.hitX || e.t > 2.6)) {
         go(e, 'stun');
         S.ev('slam', { x: cx(e) + e.facing * 60, y: cy(e), m: 10 });
+        // 촛농 방울: 포물선으로 날아와 떨어짐 (2페이즈)
+        if (e.ex.p === 2) for (let i = 0; i < 3; i++) S.proj('wax', cx(e), e.y + 10, -e.facing * (140 + i * 130), -720 - i * 40, { life: 3, grav: 1500 });
       }
     },
     danger(e) {
@@ -224,8 +226,7 @@ export const BOSSES = {
           e.vx = d > 160 ? e.facing * 70 : 0;
           if (e.t > (P2 ? 0.5 : 0.85)) {
             const r = Math.random();
-            if (!P2 && e.ex.fcd <= 0 && e.ex.fl <= 0) go(e, 'fwind');
-            else if (!P2) go(e, r < 0.5 ? 'lwind' : 'toll');
+            if (!P2) go(e, e.ex.fcd <= 0 ? 'fwind' : r < 0.5 ? 'lwind' : 'toll');
             else go(e, r < 0.4 ? 'swind' : r < 0.7 ? 'lwind' : 'throw');
             e.ex.n = 0;
             e.vx = 0;
@@ -234,9 +235,9 @@ export const BOSSES = {
         }
         case 'lwind':
           e.vx = 0;
-          if (e.t > 0.5) {
+          if (e.t > 0.68) {
             const dx = p ? p.cx - cx(e) : 0;
-            e.vx = clamp(dx / 0.95, -480, 480);
+            e.vx = clamp(dx / 0.95, -440, 440);
             e.vy = -1080;
             e.grounded = false;
             go(e, 'leap');
@@ -246,7 +247,7 @@ export const BOSSES = {
           if (e.t > 0.15 && e.grounded) {
             e.vx = 0;
             go(e, 'land');
-            for (const d of [-1, 1]) S.proj('wave', cx(e) + d * 30, e.y + e.h, d * 400, 0, { life: 1.1, big: 1 });
+            for (const d of [-1, 1]) S.proj('wave', cx(e) + d * 30, e.y + e.h, d * 340, 0, { life: 1.1, big: 1 });
             S.ev('slam', { x: cx(e), y: e.y + e.h, m: 14, bell: e.ex.bell });
           }
           break;
@@ -255,7 +256,7 @@ export const BOSSES = {
           break;
         case 'toll':
           e.vx = 0;
-          if (e.t > 0.45 + e.ex.n * 0.6 && e.ex.n < 3) {
+          if (e.t > 0.55 + e.ex.n * 0.95 && e.ex.n < 2) {
             e.ex.n++;
             S.proj('sring', cx(e), e.y + 26, 0, 0, { life: 2.2, gap: rand(-Math.PI, Math.PI) });
             S.ev('sfx', { s: 'bell', x: cx(e), y: e.y });
@@ -264,26 +265,26 @@ export const BOSSES = {
           break;
         case 'fwind':
           e.vx = 0;
-          if (e.t > 0.9) {
-            e.ex.fl = 4.6;
-            e.ex.fcd = 11;
-            S.ev('flood', { on: 1, room: S.room.id, fy: e.ex.floor });
+          if (e.t > 0.7) {
+            // 물기둥: 플레이어 위치와 양옆에 차례로, 거품 예고 후 솟음
+            e.ex.fcd = 7;
+            const px = p ? p.cx : cx(e);
+            [0, -160, 160].forEach((dx, i) => S.proj('geyser', px + dx, e.ex.floor || e.y + e.h, 0, 0, { life: 1.6 + i * 0.35, warn: 1.0 + i * 0.35 }));
             S.ev('sfx', { s: 'bell', x: cx(e), y: e.y });
-            go(e, 'toll');
-            e.ex.n = 1;
+            go(e, 'land');
           }
           break;
         case 'swind':
           e.vx = 0;
-          if (p && e.t < 0.2) e.facing = Math.sign(p.cx - cx(e)) || 1;
-          if (e.t > 0.36) { go(e, 'sweep'); S.ev('sfx', { s: 'swing', x: cx(e), y: cy(e) }); }
+          if (p && e.t < 0.25) e.facing = Math.sign(p.cx - cx(e)) || 1;
+          if (e.t > 0.55) { go(e, 'sweep'); S.ev('sfx', { s: 'swing', x: cx(e), y: cy(e) }); }
           break;
         case 'sweep':
-          e.vx = e.facing * 640;
+          e.vx = e.facing * 540;
           if (e.t > 0.42) {
             e.vx = 0;
             e.ex.n++;
-            if (e.ex.n < (Math.random() < 0.5 ? 2 : 3)) go(e, 'swind');
+            if (e.ex.n < 2) go(e, 'swind');
             else go(e, 'land');
           }
           break;
@@ -391,21 +392,17 @@ export const BOSSES = {
         go(e, 'bowP');
         S.ev('phase', { x: cx(e), y: cy(e), stage: 1 });
       }
+      if (!e.ex.floor && e.grounded) e.ex.floor = e.y + e.h;
       if (P2) {
+        // 무대 조명: 플레이어를 따라오다 멈춘 뒤 내리침
         e.ex.petal -= dt;
-        if (e.ex.petal <= 0) {
-          e.ex.petal = 7;
-          const L = roomL(S), R = roomR(S);
-          const n = 14;
-          const g1 = Math.floor(rand(1, n - 3));
-          for (let i = 0; i < n; i++) {
-            if (i === g1 || i === g1 + 1) continue;
-            S.proj('petal', L + ((R - L) * (i + 0.5)) / n, S.room.py + TILE * 1.5, 0, 140, { life: 5 });
-          }
+        if (e.ex.petal <= 0 && p) {
+          e.ex.petal = 6.5;
+          S.proj('spot', p.cx, e.ex.floor || e.y + e.h, 0, 0, { life: 1.75 });
         }
       }
       const next = () => {
-        if (P2 && e.ex.chain < 1 && Math.random() < 0.55) { e.ex.chain++; pickAtk(); }
+        if (P2 && e.ex.chain < 1 && Math.random() < 0.4) { e.ex.chain++; go(e, 'idle'); e.t = 0.35; }
         else { e.ex.chain = 0; go(e, 'idle'); }
       };
       const pickAtk = () => {
@@ -427,27 +424,31 @@ export const BOSSES = {
           if (p) e.facing = Math.sign(p.cx - cx(e)) || 1;
           const d = p ? Math.abs(p.cx - cx(e)) : 0;
           e.vx = d > 260 ? e.facing * 200 : d < 120 ? -e.facing * 160 : 0;
-          if (e.t > (P2 ? 0.35 : 0.6)) pickAtk();
+          if (e.t > (P2 ? 0.5 : 0.75)) pickAtk();
           break;
         }
         case 'swind':
           e.vx = 0;
-          if (e.t > 0.42) { go(e, 'spin'); e.vx = e.facing * 520; e.ex.b = 0; S.ev('sfx', { s: 'swing', x: cx(e), y: cy(e) }); }
+          if (e.t > 0.62) { go(e, 'spin'); e.vx = e.facing * 460; e.ex.b = 0; S.ev('sfx', { s: 'swing', x: cx(e), y: cy(e) }); }
           break;
         case 'spin':
           if (e.t > 1.15) { e.vx = 0; next(); }
           break;
         case 'rwind':
           e.vx = 0;
-          if (e.t > 0.45) { go(e, 'ribbon'); S.ev('sfx', { s: 'swing', x: cx(e), y: cy(e), p: 0.7 }); }
+          if (e.t > 0.6) { go(e, 'ribbon'); S.ev('sfx', { s: 'swing', x: cx(e), y: cy(e), p: 0.7 }); }
           break;
         case 'ribbon':
-          if (e.t > (P2 ? 0.55 : 0.3)) next();
+          if (P2 && !e.ex.loop && e.t > 0.26) {
+            e.ex.loop = 1;
+            S.proj('loop', cx(e) + e.facing * 20, e.y + 26, e.facing * 520, 0, { life: 2.2, ox: cx(e) });
+          }
+          if (e.t > 0.3) { e.ex.loop = 0; next(); }
           break;
         case 'bow':
           e.vx = 0;
-          if (e.t > 0.6) {
-            if (Math.random() < 0.6) { go(e, 'thrust'); e.vx = e.facing * 780; S.ev('sfx', { s: 'dash', x: cx(e), y: cy(e) }); }
+          if (e.t > 0.82) {
+            if (Math.random() < 0.6) { go(e, 'thrust'); e.vx = e.facing * 620; S.ev('sfx', { s: 'dash', x: cx(e), y: cy(e) }); }
             else { go(e, 'flip'); e.vx = -e.facing * 360; e.vy = -620; e.grounded = false; }
           }
           break;
@@ -455,7 +456,7 @@ export const BOSSES = {
           if (e.t > 0.32) { e.vx = 0; next(); }
           break;
         case 'flip':
-          if (e.t > 0.15 && e.grounded) { e.vx = 0; go(e, 'rwind'); e.t = 0.2; }
+          if (e.t > 0.15 && e.grounded) { e.vx = 0; go(e, 'rwind'); e.t = 0.1; }
           break;
         case 'jwind':
           e.vx = 0;
@@ -475,11 +476,11 @@ export const BOSSES = {
           break;
         case 'hang':
           e.vy = 0;
-          if (e.t > 0.25) {
+          if (e.t > 0.45) {
             const tx = p ? p.cx : cx(e), ty = p ? p.cy : e.y + 300;
             const a = Math.atan2(ty - cy(e), tx - cx(e));
-            e.vx = Math.cos(a) * 760;
-            e.vy = Math.max(200, Math.sin(a) * 760);
+            e.vx = Math.cos(a) * 620;
+            e.vy = Math.max(200, Math.sin(a) * 620);
             e.facing = Math.sign(e.vx) || 1;
             go(e, 'dive');
             S.ev('sfx', { s: 'dash', x: cx(e), y: cy(e) });
@@ -509,7 +510,7 @@ export const BOSSES = {
         if (e.st === 'spin' && res.hitX) {
           e.ex.b++;
           if (e.ex.b > 1) { e.vx = 0; next(); }
-          else { e.facing *= -1; e.vx = e.facing * 520; S.ev('slam', { x: cx(e), y: cy(e), m: 4 }); }
+          else { e.facing *= -1; e.vx = e.facing * 460; S.ev('slam', { x: cx(e), y: cy(e), m: 4 }); }
         }
         if (e.st === 'thrust' && res.hitX) e.vx = 0;
       }
@@ -518,7 +519,7 @@ export const BOSSES = {
       const b = [body(e, 6)];
       if (e.st === 'spin') b.push({ x: e.x - 22, y: e.y + 4, w: e.w + 44, h: e.h - 8 });
       if (e.st === 'ribbon' && e.t < 0.26) b.push(rectFront(e, -6, 250, 26, -6));
-      if (e.st === 'ribbon' && e.ex.p === 2 && e.t > 0.26 && e.t < 0.5) {
+      if (false) {
         const f = e.facing;
         for (let k = 1; k <= 5; k++) b.push({ x: cx(e) + f * k * 34 - 16, y: e.y - k * 26 + 20, w: 32, h: 26 });
       }
@@ -610,7 +611,7 @@ export const BOSSES = {
         ctx.moveTo(14, -32);
         for (let i = 1; i <= 10; i++) ctx.lineTo(14 + i * 25 * k, -32 + Math.sin(time * 30 + i) * 6);
         ctx.stroke();
-        if (P2 && e.t > 0.26) {
+        if (false) {
           ctx.beginPath();
           ctx.moveTo(14, -32);
           for (let i = 1; i <= 6; i++) ctx.lineTo(14 + i * 34, -32 - i * 26 + Math.sin(time * 30 + i) * 5);
@@ -635,13 +636,13 @@ export const BOSSES = {
       if (intro(e, dt)) return groundPhys(e, S, dt);
       const p = S.near(e);
       const ph = e.ex.p;
-      const sp = ph === 3 ? 1.3 : ph === 2 ? 1.12 : 1;
+      const sp = ph === 3 ? 1.18 : ph === 2 ? 1.08 : 1;
       const T = (v) => v / sp;
       if (ph === 1 && hpFrac(e) <= 0.66 && e.grounded) {
         e.ex.p = 2;
         go(e, 'phase');
         S.ev('phase', { x: cx(e), y: cy(e), roar: 1 });
-        for (const d of [-1, 1]) S.spawnEnemy('shade', cx(e) + d * 140, e.y + e.h - 2, {});
+        e.ex.wisp = 2;
       } else if (ph === 2 && hpFrac(e) <= 0.33 && e.grounded) {
         e.ex.p = 3;
         go(e, 'phase');
@@ -649,6 +650,14 @@ export const BOSSES = {
       }
       e.ex.icd -= dt;
       const L = roomL(S), R = roomR(S);
+      // 느린 등불 정령 (2페이즈부터, 한 번에 하나)
+      if (ph >= 2) {
+        e.ex.wisp -= dt;
+        if (e.ex.wisp <= 0 && S.pcount('wisp') === 0) {
+          e.ex.wisp = 8;
+          S.proj('wisp', cx(e), e.y - 30, 0, -60, { life: 5.5 });
+        }
+      }
       switch (e.st) {
         case 'phase':
           e.vx = 0;
@@ -658,9 +667,9 @@ export const BOSSES = {
           if (p) e.facing = Math.sign(p.cx - cx(e)) || 1;
           const d = p ? Math.abs(p.cx - cx(e)) : 0;
           e.vx = d > 300 ? e.facing * 240 : d < 90 ? -e.facing * 200 : 0;
-          if (e.t > T(0.6)) {
+          if (e.t > T(0.75)) {
             const r = Math.random();
-            if (e.ex.icd <= 0 && r < 0.45) go(e, 'vanish');
+            if (e.ex.icd <= 0 && r < 0.4) go(e, 'plant');
             else if (d < 160 && r < 0.5) { go(e, 'swind'); e.ex.n = 0; }
             else if (r < 0.62) go(e, 'dwind');
             else if (r < 0.82) go(e, 'pjump');
@@ -671,8 +680,8 @@ export const BOSSES = {
         }
         case 'dwind':
           e.vx = 0;
-          if (p && e.t < T(0.15)) e.facing = Math.sign(p.cx - cx(e)) || 1;
-          if (e.t > T(0.34)) { go(e, 'dash'); e.vx = e.facing * 920; S.ev('sfx', { s: 'dash', x: cx(e), y: cy(e) }); }
+          if (p && e.t < T(0.2)) e.facing = Math.sign(p.cx - cx(e)) || 1;
+          if (e.t > T(0.5)) { go(e, 'dash'); e.vx = e.facing * 760; S.ev('sfx', { s: 'dash', x: cx(e), y: cy(e) }); }
           break;
         case 'dash':
           if (e.t > 0.26) { e.vx = 0; go(e, 'rest'); }
@@ -680,7 +689,7 @@ export const BOSSES = {
         case 'swind':
           if (p) e.facing = Math.sign(p.cx - cx(e)) || 1;
           e.vx = p && Math.abs(p.cx - cx(e)) > 80 ? e.facing * 260 : 0;
-          if (e.t > T(0.26)) { go(e, 'slash'); e.vx = e.facing * 160; S.ev('sfx', { s: 'swing', x: cx(e), y: cy(e) }); }
+          if (e.t > T(0.36)) { go(e, 'slash'); e.vx = e.facing * 140; S.ev('sfx', { s: 'swing', x: cx(e), y: cy(e) }); }
           break;
         case 'slash':
           e.vx *= 0.85;
@@ -703,7 +712,7 @@ export const BOSSES = {
         }
         case 'phang':
           e.vy = 0;
-          if (e.t > T(0.2)) { go(e, 'pdive'); e.vy = 950; S.ev('sfx', { s: 'slash', x: cx(e), y: cy(e) }); }
+          if (e.t > T(0.35)) { go(e, 'pdive'); e.vy = 850; S.ev('sfx', { s: 'slash', x: cx(e), y: cy(e) }); }
           break;
         case 'pdive':
           if (e.grounded) {
@@ -714,7 +723,7 @@ export const BOSSES = {
           break;
         case 'lwind':
           e.vx = 0;
-          if (e.t > T(0.45) && e.ex.n < (ph === 3 ? 3 : 1)) {
+          if (e.t > T(0.45) && e.ex.n < 1) {
             const tx = p ? p.cx + rand(-60, 60) : cx(e);
             const fl = 0.85;
             S.proj('lantern', cx(e), e.y + 6, (tx - cx(e)) / fl, -560, { life: 3, grav: 1400 });
@@ -722,7 +731,20 @@ export const BOSSES = {
             e.ex.n++;
             e.t = T(0.25);
           }
-          if (e.ex.n >= (ph === 3 ? 3 : 1) && e.t > T(0.7)) go(e, 'rest');
+          if (e.ex.n >= 1 && e.t > T(0.7)) go(e, 'rest');
+          break;
+        case 'plant':
+          // 바늘을 땅에 꽂음 → 플레이어가 있는 절반만 불타오름 (반대편이 안전)
+          e.vx = 0;
+          if (e.t > T(0.5) && !e.ex.planted) {
+            e.ex.planted = 1;
+            const mid = (S.room.px + S.room.px + S.room.pw) / 2;
+            const left = p ? p.cx < mid : true;
+            S.proj('halfline', left ? (S.room.px + TILE + mid) / 2 : (mid + S.room.px + S.room.pw - TILE) / 2, e.y + e.h, 0, 0,
+              { life: 1.75, warn: 1.3, l: left ? S.room.px + TILE : mid, r: left ? mid : S.room.px + S.room.pw - TILE });
+            S.ev('sfx', { s: 'charge', x: cx(e), y: cy(e) });
+          }
+          if (e.t > T(1.1)) { e.ex.planted = 0; e.ex.icd = ph === 3 ? 6 : 9; go(e, 'rest'); }
           break;
         case 'vanish':
           e.vx = 0;
@@ -738,7 +760,7 @@ export const BOSSES = {
           break;
         case 'iwind':
           e.vx = 0;
-          if (e.t > T(1.05)) {
+          if (e.t > T(1.4)) {
             go(e, 'issen');
             S.ev('issen', { y: e.y + e.h, l: S.room.px, r: S.room.px + S.room.pw });
             e.x = e.facing > 0 ? R - 10 - e.w : L + 10;
@@ -750,7 +772,7 @@ export const BOSSES = {
           break;
         case 'rest':
           e.vx *= 0.8;
-          if (e.t > T(0.5)) go(e, 'idle');
+          if (e.t > T(0.65)) go(e, 'idle');
           break;
       }
       if (e.st === 'phang' || e.st === 'issen' || e.st === 'vanish' || e.st === 'iwind') {
@@ -764,9 +786,9 @@ export const BOSSES = {
       const b = [];
       if (e.st !== 'vanish' || e.t < 0.2) b.push(body(e, 5));
       if (e.st === 'dash') b.push(rectFront(e, -6, 48, 30, -4));
-      if (e.st === 'slash' && e.t < 0.12) b.push(rectFront(e, -4, 84, 52, -8));
+      if (e.st === 'slash' && e.t < 0.12) b.push(rectFront(e, -4, 74, 46, -8));
       if (e.st === 'pdive') b.push({ x: e.x - 10, y: e.y + e.h - 4, w: e.w + 20, h: 40 });
-      if (e.st === 'issen' && e.t < 0.12) b.push({ x: -1e6, y: (e.ex.iy || e.y + e.h) - 58, w: 2e6, h: 52, dmg: 2, line: true });
+      if (e.st === 'issen' && e.t < 0.12) b.push({ x: -1e6, y: (e.ex.iy || e.y + e.h) - 48, w: 2e6, h: 40, dmg: 2, line: true });
       return b;
     },
     draw(ctx, e, time) {

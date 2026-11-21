@@ -1,5 +1,5 @@
 // DOM 메뉴: 타이틀, 로비, 설정, 꾸미기, 상점, 일시정지, 결과, 엔딩
-import { settings, profile, saveSettings, saveProfile, CLOAKS, MASKS } from '../core/settings.js';
+import { settings, profile, saveSettings, saveProfile, CLOAKS, MASKS, ANTENNAS, ACCS, SWORDS, SLASH_COLORS, LIGHT_COLORS, REQ_TEXT, isUnlocked, looks } from '../core/settings.js';
 import { audio } from '../core/audio.js';
 import { input, ACTIONS, getKeys, setKey, resetKeys } from '../core/input.js';
 import { fmtTime, isTouchDevice } from '../core/util.js';
@@ -180,7 +180,7 @@ export class Menus {
       g.save();
       g.translate(mx, my);
       g.scale(ms, ms);
-      drawMoth(g, { x: -10, y: -38, w: 20, h: 38, facing: 1, anim: 'idle', animT: 0, cloak: profile.cloak, mask: profile.mask, landT: 0 }, t / 1000);
+      drawMoth(g, { x: -10, y: -38, w: 20, h: 38, facing: 1, anim: 'idle', animT: 0, landT: 0, ...looks() }, t / 1000);
       g.restore();
       requestAnimationFrame(loop);
     };
@@ -362,43 +362,107 @@ export class Menus {
 
   // ═══════════════ 꾸미기 ═══════════════
   showCosmetics(back) {
-    const unlocked = profile.unlockedMasks || [0, 1, 2];
+    const CATS = [
+      ['cloak', '망토', CLOAKS], ['mask', '가면', MASKS], ['antenna', '더듬이', ANTENNAS], ['acc', '장신구', ACCS],
+      ['sword', '검', SWORDS], ['slashC', '베기 색', SLASH_COLORS], ['lightC', '등불 빛', LIGHT_COLORS],
+    ];
+    let tab = this._cosTab || 'cloak';
     const s = this._screen(`
-      <div class="panel">
+      <div class="panel cos-panel">
         <h2>꾸미기</h2>
         <label class="field"><span>이름</span><input id="c_name" maxlength="10" value="${esc(profile.name)}"></label>
         <div class="cos">
-          <canvas id="c_prev" width="200" height="200"></canvas>
-          <div>
-            <h3>망토</h3>
-            <div class="swatches">${CLOAKS.map((c, i) => `<button class="sw ${profile.cloak === i ? 'on' : ''}" data-c="${i}" style="background:${c.c}" title="${c.name}"></button>`).join('')}</div>
-            <h3>가면</h3>
-            <div class="masks">${MASKS.map((m, i) => `<button class="mk ${profile.mask === i ? 'on' : ''}" data-m="${i}" ${unlocked.includes(i) ? '' : 'disabled'}>${unlocked.includes(i) ? m.name : '???'}</button>`).join('')}</div>
+          <canvas id="c_prev" width="240" height="240"></canvas>
+          <div class="cos-right">
+            <div class="tabs">${CATS.map(([k, n]) => `<button data-tab="${k}">${n}</button>`).join('')}</div>
+            <div class="opts" id="c_opts"></div>
+            <p class="sub" id="c_hint"></p>
           </div>
         </div>
         <button data-a="back" class="primary">저장하고 돌아가기</button>
       </div>`);
+    const renderOpts = () => {
+      this._cosTab = tab;
+      s.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+      const [key, , list] = CATS.find((c) => c[0] === tab);
+      const colorish = key === 'cloak' || key === 'slashC' || key === 'lightC';
+      $('#c_opts', s).innerHTML = list
+        .map((it, i) => {
+          const ok = isUnlocked(it);
+          const on = (profile[key] || 0) === i;
+          const bg = key === 'cloak' ? (it.grad ? `linear-gradient(135deg, ${it.c}, ${it.d})` : it.c) : key === 'slashC' ? `rgb(${it.rgb})` : key === 'lightC' ? it.css : '';
+          if (colorish)
+            return `<button class="sw ${on ? 'on' : ''} ${ok ? '' : 'lock'}" data-o="${i}" style="background:${bg}" title="${esc(it.name)}${ok ? '' : ' — ' + esc(REQ_TEXT[it.req] || '')}">${ok ? '' : '🔒'}</button>`;
+          return `<button class="mk ${on ? 'on' : ''} ${ok ? '' : 'lock'}" data-o="${i}">${ok ? esc(it.name) : '🔒 ???'}</button>`;
+        })
+        .join('');
+      const cur = list[profile[key] || 0];
+      $('#c_hint', s).textContent = cur ? `선택: ${cur.name}` : '';
+    };
+    renderOpts();
     const cv = $('#c_prev', s);
     const g = cv.getContext('2d');
+    let atkT = 0, last = 0, dir = 0;
     const draw = (t) => {
       if (!cv.isConnected) return;
+      const dt = last ? (t - last) / 1000 : 0;
+      last = t;
+      // 미리보기: 주기적으로 베기 시연
+      atkT -= dt;
+      if (atkT < -1.2) { atkT = 0.16; dir = (dir + 1) % 3; }
       g.setTransform(1, 0, 0, 1, 0, 0);
-      g.fillStyle = '#0b1416';
-      g.fillRect(0, 0, 200, 200);
-      g.setTransform(3, 0, 0, 3, 100 - 30, 170 - 38 * 3 + 8);
-      drawMoth(g, { x: 0, y: 0, w: 20, h: 38, facing: 1, anim: 'idle', animT: 0, cloak: profile.cloak, mask: profile.mask, landT: 0 }, t / 1000);
+      const lc = LIGHT_COLORS[looks().lightC];
+      const bg = g.createRadialGradient(120, 130, 10, 120, 130, 150);
+      bg.addColorStop(0, '#1a2a2c');
+      bg.addColorStop(1, '#070b0c');
+      g.fillStyle = bg;
+      g.fillRect(0, 0, 240, 240);
+      g.globalAlpha = 0.25;
+      const lg = g.createRadialGradient(120, 120, 0, 120, 120, 110);
+      lg.addColorStop(0, lc.css);
+      lg.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = lg;
+      g.fillRect(0, 0, 240, 240);
+      g.globalAlpha = 1;
+      g.fillStyle = '#03060a';
+      g.fillRect(0, 196, 240, 44);
+      g.setTransform(3.2, 0, 0, 3.2, 120 - 10 * 3.2, 196 - 38 * 3.2);
+      const L = looks();
+      const st = Object.assign({ x: 0, y: 0, w: 20, h: 38, facing: 1, anim: 'idle', animT: 0, landT: 0, vx: 120, atkT: Math.max(0, atkT), atkDir: ['side', 'up', 'side'][dir] }, L);
+      drawMoth(g, st, t / 1000);
+      if (atkT > 0) {
+        const k = 1 - atkT / 0.16;
+        const rgb = SLASH_COLORS[L.slashC].rgb;
+        g.save();
+        g.translate(10 + (dir === 1 ? 0 : 24), dir === 1 ? -8 : 18);
+        g.rotate(dir === 1 ? -Math.PI / 2 : 0);
+        g.beginPath();
+        g.arc(-6, 0, 16, -1.2, 1.2);
+        g.arc(-12, 0, 12, 1.0, -1.0, true);
+        g.closePath();
+        g.fillStyle = `rgba(${rgb},${0.85 * (1 - k)})`;
+        g.fill();
+        g.restore();
+      }
       requestAnimationFrame(draw);
     };
     requestAnimationFrame(draw);
     s.addEventListener('click', (e) => {
       const b = e.target.closest('button');
       if (!b) return;
-      if (b.dataset.c != null) {
-        profile.cloak = Number(b.dataset.c);
-        s.querySelectorAll('.sw').forEach((x) => x.classList.toggle('on', x === b));
-      } else if (b.dataset.m != null) {
-        profile.mask = Number(b.dataset.m);
-        s.querySelectorAll('.mk').forEach((x) => x.classList.toggle('on', x === b));
+      if (b.dataset.tab) {
+        tab = b.dataset.tab;
+        renderOpts();
+      } else if (b.dataset.o != null) {
+        const [key, , list] = CATS.find((c) => c[0] === tab);
+        const it = list[Number(b.dataset.o)];
+        if (!isUnlocked(it)) {
+          $('#c_hint', s).textContent = `잠김 — ${REQ_TEXT[it.req] || ''}`;
+          audio.play('ui', { pitch: 0.6 });
+          return;
+        }
+        profile[key] = Number(b.dataset.o);
+        renderOpts();
       } else if (b.dataset.a === 'back') {
         const n = $('#c_name', s).value.trim().slice(0, 10);
         if (n) profile.name = n;

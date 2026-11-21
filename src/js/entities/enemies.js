@@ -2,7 +2,7 @@
 import { go, groundPhys, flyPhys, blockedAhead, cx, cy, rectFront } from './common.js';
 import { clamp, rand } from '../core/util.js';
 
-const body = (e, shrink = 2) => ({ x: e.x + shrink, y: e.y + shrink, w: e.w - shrink * 2, h: e.h - shrink * 2 });
+const body = (e, s0 = 2) => { const s = s0 + 2; return { x: e.x + s, y: e.y + s + 2, w: e.w - s * 2, h: e.h - s * 2 - 2 }; };
 const C = {
   shell: '#0e1215',
   shell2: '#1a2126',
@@ -90,7 +90,7 @@ export const ENEMIES = {
           break;
         case 'wind':
           e.vx = 0;
-          if (e.t > 0.5) { go(e, 'thrust'); e.vx = e.facing * 420; }
+          if (e.t > 0.62) { go(e, 'thrust'); e.vx = e.facing * 380; }
           break;
         case 'thrust':
           e.vx *= Math.pow(0.02, dt);
@@ -190,10 +190,10 @@ export const ENEMIES = {
         }
         case 'wind':
           e.vx *= 0.9; e.vy *= 0.9;
-          if (p && e.t < 0.5) { e.ex.tx = p.cx; e.ex.ty = p.cy; }
-          if (e.t > 0.7) {
+          if (p && e.t < 0.45) { e.ex.tx = p.cx; e.ex.ty = p.cy; }
+          if (e.t > 0.85) {
             const a = Math.atan2(e.ex.ty - cy(e), e.ex.tx - cx(e));
-            e.vx = Math.cos(a) * 520; e.vy = Math.sin(a) * 520;
+            e.vx = Math.cos(a) * 450; e.vy = Math.sin(a) * 450;
             go(e, 'charge');
           }
           break;
@@ -266,7 +266,7 @@ export const ENEMIES = {
           if (p && Math.abs(p.cx - cx(e)) < 46 && p.cy > e.y && p.cy - e.y < 500 && S.world.lineClear(cx(e), e.y + e.h + 2, p.cx, p.cy)) go(e, 'shiver');
           return;
         case 'shiver':
-          if (e.t > 0.3) go(e, 'drop');
+          if (e.t > 0.45) go(e, 'drop');
           return;
         case 'drop':
           groundPhys(e, S, dt);
@@ -427,7 +427,7 @@ export const ENEMIES = {
           if (p && e.t > 1.0 && Math.abs(p.cx - cx(e)) < 420 && Math.abs(p.cy - cy(e)) < 200) go(e, 'crouch');
           break;
         case 'crouch':
-          if (e.t > 0.42) {
+          if (e.t > 0.56) {
             const dx = p ? p.cx - cx(e) : e.facing * 100;
             e.vx = clamp(dx / 0.7, -440, 440);
             e.vy = -840;
@@ -440,7 +440,7 @@ export const ENEMIES = {
           if (e.t > 0.1 && e.grounded) {
             e.vx = 0;
             go(e, 'land');
-            for (const d of [-1, 1]) S.proj('wave', cx(e) + d * 20, e.y + e.h, d * 360, 0, { life: 0.85 });
+            for (const d of [-1, 1]) S.proj('wave', cx(e) + d * 20, e.y + e.h, d * 320, 0, { life: 0.8 });
             S.ev('slam', { x: cx(e), y: e.y + e.h, m: 5 });
           }
           break;
@@ -529,17 +529,17 @@ export const ENEMIES = {
           break;
         case 'appear':
           if (p) e.facing = Math.sign(p.cx - cx(e)) || 1;
-          if (e.t > 0.35) { go(e, 'cast'); e.ex.n = 0; }
+          if (e.t > 0.45) { go(e, 'cast'); e.ex.n = 0; }
           break;
         case 'cast':
-          if (e.t > 0.35 + e.ex.n * 0.28 && e.ex.n < 3) {
+          if (e.t > 0.5 + e.ex.n * 0.34 && e.ex.n < 3) {
             e.ex.n++;
             const tx = p ? p.cx : cx(e) + e.facing * 100, ty = p ? p.cy : cy(e);
             const a = Math.atan2(ty - (e.y + 14), tx - cx(e));
-            S.proj('orb', cx(e) + e.facing * 12, e.y + 14, Math.cos(a) * 290, Math.sin(a) * 290, { life: 3 });
+            S.proj('orb', cx(e) + e.facing * 12, e.y + 14, Math.cos(a) * 240, Math.sin(a) * 240, { life: 3 });
             S.ev('sfx', { s: 'shoot', x: cx(e), y: e.y });
           }
-          if (e.t > 1.4) go(e, 'idle');
+          if (e.t > 1.7) go(e, 'idle');
           break;
       }
       if (e.kb > 0) e.kb -= dt;
@@ -612,17 +612,17 @@ export const ENEMIES = {
           break;
         case 'swing': // 3연타: 예고 0.28 + 휘두름 0.16
           e.vx = 0;
-          if (e.t > 0.28 && e.t < 0.32) e.vx = e.facing * 220;
-          if (e.t > 0.44) {
+          if (e.t > 0.36 && e.t < 0.4) e.vx = e.facing * 200;
+          if (e.t > 0.52) {
             e.ex.combo++;
             if (e.ex.combo >= 3) go(e, 'rest');
-            else { e.t = 0.08; if (p) e.facing = Math.sign(dx) || e.facing; }
+            else { e.t = 0.06; if (p) e.facing = Math.sign(dx) || e.facing; }
           }
-          if (e.t > 0.28 && e.t < 0.3) S.ev('sfx', { s: 'swing', x: cx(e), y: cy(e) });
+          if (e.t > 0.36 && e.t < 0.38) S.ev('sfx', { s: 'swing', x: cx(e), y: cy(e) });
           break;
         case 'dwind':
           e.vx = 0;
-          if (e.t > 0.55) { go(e, 'dash'); e.vx = e.facing * 560; S.ev('sfx', { s: 'dash', x: cx(e), y: cy(e) }); }
+          if (e.t > 0.72) { go(e, 'dash'); e.vx = e.facing * 480; S.ev('sfx', { s: 'dash', x: cx(e), y: cy(e) }); }
           break;
         case 'dash':
           if (blockedAhead(e, S)) e.vx = 0;
@@ -632,10 +632,15 @@ export const ENEMIES = {
           e.vx = 0;
           if (e.t > 1.1) go(e, 'walk');
           break;
+        case 'bash':
+          // 예고(방패를 당김) 0.45초 후 짧게 밀치기
+          e.vx = e.t > 0.45 && e.t < 0.7 ? e.facing * 260 : 0;
+          if (e.t > 1.0) go(e, 'rest');
+          break;
         case 'counter':
           e.vx = 0;
-          if (e.t > 0.12 && e.t < 0.14) S.ev('sfx', { s: 'swing', x: cx(e), y: cy(e) });
-          if (e.t > 0.3) go(e, 'rest');
+          if (e.t > 0.2 && e.t < 0.22) S.ev('sfx', { s: 'swing', x: cx(e), y: cy(e) });
+          if (e.t > 0.4) go(e, 'rest');
           break;
         case 'rest':
           e.vx *= 0.8;
@@ -649,19 +654,20 @@ export const ENEMIES = {
       if (e.st === 'guard' && Math.sign(fromX - cx(e)) === e.facing) return true;
       return false;
     },
-    onBlock(e) { if (e.st === 'guard') { e.st = 'counter'; e.t = 0; } },
+    onBlock(e) { if (e.st === 'guard') { e.st = 'bash'; e.t = 0; } },
     danger(e) {
       const b = [body(e, 4)];
-      if (e.st === 'swing' && e.t > 0.28 && e.t < 0.42) b.push(rectFront(e, -6, 64, 56, -6));
+      if (e.st === 'swing' && e.t > 0.36 && e.t < 0.48) b.push(rectFront(e, -6, 58, 50, -6));
       if (e.st === 'dash' && e.t < 0.36) b.push(rectFront(e, -4, 40, 40, 0));
-      if (e.st === 'counter' && e.t > 0.12 && e.t < 0.26) b.push(rectFront(e, -6, 70, 60, -6));
+      if (e.st === 'bash' && e.t > 0.45 && e.t < 0.7) b.push(rectFront(e, -10, 22, 40, 0));
+      if (e.st === 'counter' && e.t > 0.2 && e.t < 0.32) b.push(rectFront(e, -6, 64, 54, -6));
       return b;
     },
     draw(ctx, e, time) {
       ctx.save();
       ctx.translate(cx(e), e.y + e.h);
       ctx.scale(e.facing, 1);
-      const wind = (e.st === 'swing' && e.t < 0.28) || e.st === 'dwind';
+      const wind = (e.st === 'swing' && e.t < 0.36) || e.st === 'dwind';
       // 망토
       ctx.fillStyle = '#2a1416';
       ctx.beginPath();
@@ -691,7 +697,7 @@ export const ENEMIES = {
       ctx.translate(8, -26);
       let ang = -0.6;
       if (wind) ang = -2.2;
-      if (e.st === 'swing' && e.t >= 0.28) ang = -2.2 + Math.min(1, (e.t - 0.28) / 0.12) * 3;
+      if (e.st === 'swing' && e.t >= 0.36) ang = -2.2 + Math.min(1, (e.t - 0.36) / 0.12) * 3;
       if (e.st === 'dash' || e.st === 'dwind') ang = e.st === 'dash' ? 0 : -2.6;
       if (e.st === 'counter') ang = -2.2 + Math.min(1, e.t / 0.18) * 3;
       if (e.st === 'guard') ang = -1.5;
@@ -701,8 +707,9 @@ export const ENEMIES = {
       ctx.fillStyle = '#4a3a2a';
       ctx.fillRect(-6, -4, 6, 8);
       ctx.restore();
-      if (e.st === 'guard') {
-        ctx.fillStyle = '#39434a';
+      if (e.st === 'guard' || e.st === 'bash') {
+        if (e.st === 'bash') ctx.translate(e.t < 0.45 ? -4 * (e.t / 0.45) : 6, 0);
+        ctx.fillStyle = e.st === 'bash' && e.t < 0.45 ? '#6a4a2a' : '#39434a';
         ctx.fillRect(12, -44, 6, 34);
         ctx.fillStyle = 'rgba(255,220,150,0.4)';
         ctx.fillRect(16, -44, 2, 34);
@@ -724,7 +731,7 @@ export const ENEMIES = {
           if (e.t > 1.4 + (e.id % 3) * 0.3) go(e, 'wind');
           break;
         case 'wind':
-          if (e.t > 0.5) { go(e, 'dash'); e.vx = e.facing * 720; }
+          if (e.t > 0.7) { go(e, 'dash'); e.vx = e.facing * 600; }
           break;
         case 'dash':
           if (blockedAhead(e, S) || e.t > 0.3) { e.vx = 0; go(e, 'idle'); }

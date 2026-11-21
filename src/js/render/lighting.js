@@ -10,6 +10,8 @@ export class Lighting {
     this.glowWhite = makeSoft(128, 'rgba(220,240,255,0.45)');
     this.glowRed = makeSoft(128, 'rgba(255,70,60,0.5)');
     this.glowTeal = makeSoft(128, 'rgba(90,230,210,0.45)');
+    this.glowViolet = makeSoft(128, 'rgba(180,130,255,0.45)');
+    this.glowSky = makeSoft(128, 'rgba(150,200,255,0.45)');
     this.lights = [];
     this.glows = [];
   }
@@ -29,7 +31,7 @@ export class Lighting {
   drawGlows(ctx) {
     ctx.globalCompositeOperation = 'lighter';
     for (const g of this.glows) {
-      const img = g.kind === 'white' ? this.glowWhite : g.kind === 'red' ? this.glowRed : g.kind === 'teal' ? this.glowTeal : this.glowAmber;
+      const img = g.kind === 'white' ? this.glowWhite : g.kind === 'red' ? this.glowRed : g.kind === 'teal' ? this.glowTeal : g.kind === 'violet' ? this.glowViolet : g.kind === 'sky' ? this.glowSky : this.glowAmber;
       ctx.globalAlpha = g.a;
       ctx.drawImage(img, g.x - g.r, g.y - g.r, g.r * 2, g.r * 2);
     }

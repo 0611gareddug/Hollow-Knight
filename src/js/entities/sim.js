@@ -51,6 +51,7 @@ export class Sim {
       spawnEnemy: (kind, x, y, ex) => self.spawn(kind, x, y, room.id, ex),
       ev: (name, data) => self.g.event(name, data),
       count: (kind) => self.enemies.filter((e) => e.kind === kind && e.room === room.id && !e.dead).length,
+      pcount: (type) => self.projs.filter((p) => p.type === type && p.room === room.id).length,
     };
   }
 
@@ -245,9 +246,10 @@ export class Sim {
     }
     for (const v of this.pviews.values()) {
       v.t += dt;
+      if (v.type === 'loop') v.vx -= Math.sign(v.ex.d || v.vx || 1) * 950 * dt;
       v.sx += v.vx * dt;
       v.sy += v.vy * dt;
-      if (v.type === 'shard' || v.type === 'lantern') v.vy += (v.ex.grav || 1400) * dt;
+      if (v.type === 'shard' || v.type === 'lantern' || v.type === 'wax') v.vy += (v.ex.grav || 1400) * dt;
       v.x += (v.sx - v.x) * Math.min(1, dt * 20);
       v.y += (v.sy - v.y) * Math.min(1, dt * 20);
     }

@@ -2,17 +2,19 @@
 import { TILE, clamp, rand } from '../core/util.js';
 import { audio } from '../core/audio.js';
 import { fx } from '../render/fx.js';
-import { profile } from '../core/settings.js';
+import { profile, looks } from '../core/settings.js';
+import { slashRGB } from '../render/drawPlayer.js';
 
 export const PH = {
   RUN: 330,
   G: 2750,
   MAX_FALL: 980,
-  JUMP_V: 630,
-  JUMP_HOLD: 0.165,
-  DJ_V: 580,
-  DJ_HOLD: 0.12,
-  CUT_V: 140,
+  JUMP_V: 590,
+  JUMP_HOLD: 0.21,
+  JUMP_MIN: 0.045,
+  DJ_V: 560,
+  DJ_HOLD: 0.14,
+  CUT_MUL: 0.3,
   COYOTE: 0.09,
   BUFFER: 0.13,
   DASH_V: 850,
@@ -34,8 +36,7 @@ export class Player {
     this.w = 20;
     this.h = 38;
     this.reset(x, y);
-    this.cloak = profile.cloak;
-    this.mask = profile.mask;
+    Object.assign(this, looks());
   }
 
   reset(x, y) {
@@ -54,6 +55,9 @@ export class Player {
     this.airDash = true;
     this.dashT = 0;
     this.dashCD = 0;
+    this.atkBuf = 0;
+    this.dashBuf = 0;
+    this.jumpT = 0;
     this.atkCD = 0;
     this.atkT = 0;
     this.atkDir = 'side';
@@ -207,7 +211,9 @@ export class Player {
       this.djUsed = false;
     }
 
-    // 대시
+    // 대시 (입력 버퍼)
+    if (inp.pressed.dash && (this.dashCD > 0 || !(this.grounded || this.airDash))) this.dashBuf = 0.1;
+    else if (this.dashBuf > 0) this.dashBuf -= dt;
     if (this.dashT > 0) {
       this.dashT -= dt;
       this.vx = this.facing * PH.DASH_V;
@@ -215,7 +221,8 @@ export class Player {
       if (Math.random() < 0.8) fx.add({ kind: 'dust', x: this.cx - this.facing * 10, y: this.cy + rand(-10, 10), vx: -this.facing * 60, vy: rand(-20, 20), life: 0.35, size: 5, color: '#cfd8d6', grav: 0, drag: 3 });
       this.trail.push({ x: this.x, y: this.y, t: 0.18, f: this.facing });
       if (this.dashT <= 0) this.vx = this.facing * PH.RUN;
-    } else if (control && inp.pressed.dash && ab.dash && this.dashCD <= 0 && (this.grounded || this.airDash || sliding)) {
+    } else if (control && (inp.pressed.dash || this.dashBuf > 0) && ab.dash && this.dashCD <= 0 && (this.grounded || this.airDash || sliding)) {
+      this.dashBuf = 0;
       if (sliding) this.facing = -touchWall;
       else if (dirX) this.facing = dirX;
       this.dashT = PH.DASH_T;
@@ -271,17 +278,22 @@ export class Player {
     }
     // 가변 점프: 누르고 있는 동안 상승 속도 유지
     if (this.jumping) {
-      if (inp.held.jump && this.jumpHold > 0) {
+      // 누른 시간에 비례: 최소 시간은 보장, 떼면 상승 속도를 비율로 줄여 부드럽게 끊음
+      this.jumpT += dt;
+      if ((inp.held.jump || this.jumpT < PH.JUMP_MIN) && this.jumpHold > 0) {
         this.jumpHold -= dt;
         this.vy = -this.jumpV;
       } else {
-        if (!inp.held.jump && this.vy < -PH.CUT_V) this.vy = -PH.CUT_V;
+        if (!inp.held.jump && this.vy < 0) this.vy *= PH.CUT_MUL;
         this.jumping = false;
       }
     }
 
     // 공격
-    if (control && inp.pressed.attack && this.atkCD <= 0 && this.dashT <= 0) {
+    if (inp.pressed.attack) this.atkBuf = 0.14;
+    else if (this.atkBuf > 0) this.atkBuf -= dt;
+    if (control && this.atkBuf > 0 && this.atkCD <= 0 && this.dashT <= 0) {
+      this.atkBuf = 0;
       let d = 'side';
       if (inp.held.up) d = 'up';
       else if (inp.held.down && !this.grounded) d = 'down';
@@ -292,9 +304,10 @@ export class Player {
       this.atkId++;
       audio.play('slash');
       const cx = this.cx, cy = this.cy;
-      if (d === 'up') fx.slash(cx, this.y - 6, 'up', this.facing);
-      else if (d === 'down') fx.slash(cx, this.y + this.h + 8, 'down', this.facing);
-      else fx.slash(cx + this.facing * 34, cy - 2, 'side', this.facing);
+      const sc = slashRGB(this.slashC);
+      if (d === 'up') fx.slash(cx, this.y - 6, 'up', this.facing, sc);
+      else if (d === 'down') fx.slash(cx, this.y + this.h + 8, 'down', this.facing, sc);
+      else fx.slash(cx + this.facing * 34, cy - 2, 'side', this.facing, sc);
       g.onSlash(this);
     }
 
@@ -338,6 +351,7 @@ export class Player {
     this.vy = -v;
     this.jumpV = v;
     this.jumpHold = hold;
+    this.jumpT = 0;
     this.jumping = true;
     this.jumpBuf = 0;
     this.coyote = 0;
@@ -351,6 +365,36 @@ export class Player {
     }
     const wasGround = this.grounded;
     const fallV = this.vy;
+    // 머리 모서리 보정: 천장 모서리에 살짝 걸리면 옆으로 밀어줌
+    if (this.vy < 0) {
+      const ny = this.y + this.vy * dt;
+      if (W.rectSolid(this.x, ny, this.w, this.h)) {
+        for (let d = 1; d <= 9; d++) {
+          let done = false;
+          for (const s of [1, -1]) {
+            if (!W.rectSolid(this.x + s * d, ny, this.w, this.h) && !W.rectSolid(this.x + s * d, this.y, this.w, this.h)) {
+              this.x += s * d;
+              done = true;
+              break;
+            }
+          }
+          if (done) break;
+        }
+      }
+    }
+    // 턱 보정: 발끝이 턱에 아주 살짝 걸리면 올려줌
+    if (this.vx !== 0 && !this.grounded) {
+      const nx = this.x + this.vx * dt;
+      if (W.rectSolid(nx, this.y, this.w, this.h)) {
+        for (let up = 1; up <= 10; up++) {
+          if (!W.rectSolid(nx, this.y - up, this.w, this.h) && !W.rectSolid(this.x, this.y - up, this.w, this.h)) {
+            this.y -= up;
+            if (this.vy > 0) this.vy = 0;
+            break;
+          }
+        }
+      }
+    }
     const res = W.moveBody(this, this.vx * dt, this.vy * dt, this.dropT > 0);
     if (res.hitY < 0) {
       this.vy = 0;
@@ -400,7 +444,7 @@ export class Player {
   hurt(dmg, srcX) {
     if (this.invul > 0 || this.dead || this.downed || this.hazardT > 0 || this.sitting) return false;
     this.hp -= dmg;
-    this.invul = 1.3;
+    this.invul = 1.5;
     this.hurtT = 0.22;
     this.flash = 0.1;
     this.focusT = 0;
@@ -452,7 +496,7 @@ export class Player {
       f: this.facing, a: this.anim, at: Math.round(this.animT * 100) / 100,
       ad: this.atkDir, ak: Math.round(Math.max(0, this.atkT) * 1000) / 1000,
       hp: this.hp, mh: this.maxHp, inv: this.invul > 0 ? 1 : 0,
-      rm: room, cl: this.cloak, mk: this.mask, rv: Math.round(this.revive * 100) / 100,
+      rm: room, cl: this.cloak, mk: this.mask, an: this.antenna, ac: this.acc, sw: this.sword, sc: this.slashC, lc: this.lightC, rv: Math.round(this.revive * 100) / 100,
       dn: this.downed ? 1 : 0, hz: this.hazardT > 0 ? 1 : 0, em: this.ember,
     };
   }

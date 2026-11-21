@@ -22,7 +22,7 @@ export const PROJ = {
       p.y += p.vy * dt;
       return !S.world.solidAt(p.x, p.y);
     },
-    hit: (p, b) => circRect(p.x, p.y, 6, b),
+    hit: (p, b) => circRect(p.x, p.y, 4.5, b),
     draw(ctx, p) {
       ctx.save();
       ctx.translate(p.x, p.y);
@@ -45,7 +45,7 @@ export const PROJ = {
       p.y += p.vy * dt;
       return !S.world.solidAt(p.x, p.y);
     },
-    hit: (p, b) => circRect(p.x, p.y, 8, b),
+    hit: (p, b) => circRect(p.x, p.y, 6, b),
     draw(ctx, p, time) {
       ctx.fillStyle = 'rgba(255,140,60,0.35)';
       ctx.beginPath();
@@ -70,7 +70,7 @@ export const PROJ = {
       if (!W.solidAt(p.x, p.y + 6) && W.get(Math.floor(p.x / TILE), Math.floor((p.y + 6) / TILE)) !== 2) return false;
       return true;
     },
-    hit: (p, b) => rr({ x: p.x - 13, y: p.y - (p.ex.big ? 42 : 28), w: 26, h: p.ex.big ? 42 : 28 }, b),
+    hit: (p, b) => rr({ x: p.x - 9, y: p.y - (p.ex.big ? 32 : 20), w: 18, h: p.ex.big ? 32 : 20 }, b),
     draw(ctx, p, time) {
       const h = p.ex.big ? 42 : 28;
       const d = Math.sign(p.vx);
@@ -88,7 +88,7 @@ export const PROJ = {
   },
   puddle: {
     update: () => true,
-    hit: (p, b) => p.t > 0.1 && rr({ x: p.x - 30, y: p.y - 8, w: 60, h: 8 }, b),
+    hit: (p, b) => p.t > 0.25 && rr({ x: p.x - 26, y: p.y - 6, w: 52, h: 6 }, b),
     draw(ctx, p, time) {
       const a = Math.min(1, (p.life - p.t) * 2);
       ctx.fillStyle = `rgba(80,210,180,${0.75 * a})`;
@@ -107,7 +107,7 @@ export const PROJ = {
   fire: {
     light: 100, glow: 'amber',
     update: () => true,
-    hit: (p, b) => rr({ x: p.x - 14, y: p.y - 28, w: 28, h: 28 }, b),
+    hit: (p, b) => p.t > 0.15 && rr({ x: p.x - 10, y: p.y - 22, w: 20, h: 22 }, b),
     draw(ctx, p, time) {
       const a = Math.min(1, (p.life - p.t) * 3);
       for (let i = 0; i < 3; i++) {
@@ -156,7 +156,7 @@ export const PROJ = {
       }
       return true;
     },
-    hit: (p, b) => circRect(p.x, p.y, 14, b),
+    hit: (p, b) => circRect(p.x, p.y, 11, b),
     draw(ctx, p) {
       ctx.fillStyle = '#1a1714';
       ctx.beginPath();
@@ -175,21 +175,21 @@ export const PROJ = {
     light: 0,
     update: () => true,
     hit(p, b) {
-      const r = p.t * 330;
+      const r = p.t * 280;
       const bx = b.x + b.w / 2, by = b.y + b.h / 2;
       const d = Math.hypot(bx - p.x, by - p.y);
-      if (Math.abs(d - r) > 16) return false;
+      if (Math.abs(d - r) > 10) return false;
       let a = Math.atan2(by - p.y, bx - p.x) - p.ex.gap;
       a = Math.atan2(Math.sin(a), Math.cos(a));
-      return Math.abs(a) > 0.5;
+      return Math.abs(a) > 0.75;
     },
     draw(ctx, p) {
-      const r = p.t * 330;
+      const r = p.t * 280;
       const k = p.t / p.life;
       ctx.strokeStyle = `rgba(126,240,216,${0.85 * (1 - k)})`;
       ctx.lineWidth = 10;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, r, p.ex.gap + 0.5, p.ex.gap - 0.5 + Math.PI * 2);
+      ctx.arc(p.x, p.y, r, p.ex.gap + 0.75, p.ex.gap - 0.75 + Math.PI * 2);
       ctx.stroke();
       ctx.strokeStyle = `rgba(230,255,250,${0.9 * (1 - k)})`;
       ctx.lineWidth = 2.5;
@@ -203,7 +203,7 @@ export const PROJ = {
       p.y += p.vy * dt;
       return !S.world.solidAt(p.x, p.y);
     },
-    hit: (p, b) => circRect(p.x, p.y, 10, b),
+    hit: (p, b) => circRect(p.x, p.y, 7, b),
     draw(ctx, p, time) {
       ctx.save();
       ctx.translate(p.x, p.y);
@@ -226,7 +226,7 @@ export const PROJ = {
       p.x += Math.sin(p.t * 3 + p.id) * 40 * dt;
       return !S.world.solidAt(p.x, p.y + 6);
     },
-    hit: (p, b) => circRect(p.x, p.y, 9, b),
+    hit: (p, b) => circRect(p.x, p.y, 6, b),
     draw(ctx, p) {
       ctx.save();
       ctx.translate(p.x, p.y);
@@ -271,7 +271,7 @@ export const PROJ = {
   blast: {
     light: 200, glow: 'amber',
     update: () => true,
-    hit: (p, b) => circRect(p.x, p.y, 74, b),
+    hit: (p, b) => circRect(p.x, p.y, 60, b),
     draw(ctx, p) {
       const k = p.t / p.life;
       ctx.fillStyle = `rgba(255,200,120,${1 - k})`;
@@ -281,6 +281,184 @@ export const PROJ = {
     },
   },
 };
+
+// ───── 교체된 공정한 패턴들 (모두 예고 후 판정) ─────
+Object.assign(PROJ, {
+  // 촛농 방울: 포물선 낙하
+  wax: {
+    light: 60, glow: 'amber',
+    update(p, dt, S) {
+      p.vy += (p.ex.grav || 1500) * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      if (S.world.solidAt(p.x, p.y + 6) || S.world.solidAt(p.x + Math.sign(p.vx) * 6, p.y)) {
+        S.ev('splash', { x: p.x, y: p.y });
+        return false;
+      }
+      return true;
+    },
+    hit: (p, b) => circRect(p.x, p.y, 8, b),
+    draw(ctx, p, time) {
+      ctx.fillStyle = '#e8d9b0';
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y - 10);
+      ctx.quadraticCurveTo(p.x + 8, p.y + 2, p.x, p.y + 8);
+      ctx.quadraticCurveTo(p.x - 8, p.y + 2, p.x, p.y - 10);
+      ctx.fill();
+      ctx.fillStyle = '#ffb347';
+      ctx.fillRect(p.x - 1.5, p.y - 2, 3, 3);
+    },
+  },
+  // 물기둥: 거품 예고 → 솟음
+  geyser: {
+    light: 80, glow: 'teal',
+    update: () => true,
+    hit: (p, b) => p.t > p.ex.warn && p.t < p.ex.warn + 0.45 && rr({ x: p.x - 17, y: p.y - 130, w: 34, h: 130 }, b),
+    draw(ctx, p, time) {
+      const w = p.ex.warn;
+      if (p.t < w) {
+        const k = p.t / w;
+        ctx.fillStyle = `rgba(120,240,220,${0.25 + k * 0.5})`;
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y - 2, 20, 4 + k * 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        for (let i = 0; i < 4; i++) {
+          const yy = p.y - ((time * 70 + i * 13) % (20 + k * 30));
+          ctx.beginPath();
+          ctx.arc(p.x - 12 + i * 8, yy, 2 + k * 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else {
+        const k = Math.min(1, (p.t - w) / 0.12), fade = Math.max(0, 1 - (p.t - w - 0.35) / 0.3);
+        const h = 130 * k;
+        const g = ctx.createLinearGradient(0, p.y - h, 0, p.y);
+        g.addColorStop(0, `rgba(220,255,250,${0.9 * fade})`);
+        g.addColorStop(1, `rgba(60,200,180,${0.7 * fade})`);
+        ctx.fillStyle = g;
+        ctx.fillRect(p.x - 15 + Math.sin(time * 40) * 1.5, p.y - h, 30, h);
+      }
+    },
+  },
+  // 무대 조명: 따라오다 멈춘 뒤 내리침
+  spot: {
+    light: 160, glow: 'red',
+    update(p, dt, S) {
+      if (p.t < 0.95) {
+        const t = S.near({ x: p.x - 1, y: p.y - 60, w: 2, h: 2 });
+        if (t) p.x += Math.max(-280 * dt, Math.min(280 * dt, t.cx - p.x));
+      }
+      return true;
+    },
+    hit: (p, b) => p.t > 1.4 && p.t < 1.6 && rr({ x: p.x - 30, y: p.y - 420, w: 60, h: 420 }, b),
+    draw(ctx, p, time) {
+      const locked = p.t >= 0.95;
+      if (p.t < 1.4) {
+        const a = locked ? 0.35 + Math.sin(time * 30) * 0.15 : 0.18;
+        const g = ctx.createLinearGradient(0, p.y - 420, 0, p.y);
+        g.addColorStop(0, `rgba(255,90,100,0)`);
+        g.addColorStop(1, `rgba(255,90,100,${a})`);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(p.x - 12, p.y - 420);
+        ctx.lineTo(p.x + 12, p.y - 420);
+        ctx.lineTo(p.x + 32, p.y);
+        ctx.lineTo(p.x - 32, p.y);
+        ctx.fill();
+        ctx.strokeStyle = `rgba(255,140,150,${locked ? 0.9 : 0.4})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y - 2, 32, 6, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        const k = (p.t - 1.4) / 0.35;
+        ctx.fillStyle = `rgba(255,230,230,${Math.max(0, 1 - k)})`;
+        ctx.fillRect(p.x - 30, p.y - 420, 60, 420);
+      }
+    },
+  },
+  // 리본 고리: 앞으로 날아갔다 되돌아옴 (점프로 피함)
+  loop: {
+    light: 50, glow: 'red',
+    update(p, dt) {
+      if (p.ex.d == null) p.ex.d = Math.sign(p.vx) || 1;
+      p.vx -= p.ex.d * 950 * dt;
+      p.x += p.vx * dt;
+      return !(p.t > 0.6 && Math.sign(p.vx) !== p.ex.d && (p.x - p.ex.ox) * p.ex.d < 0);
+    },
+    hit: (p, b) => circRect(p.x, p.y, 11, b),
+    draw(ctx, p, time) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(time * 18);
+      ctx.strokeStyle = '#e0304a';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 13, 7, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    },
+  },
+  // 등불 정령: 느리게 따라옴
+  wisp: {
+    light: 110, glow: 'amber',
+    update(p, dt, S) {
+      const t = S.near({ x: p.x - 1, y: p.y - 1, w: 2, h: 2 });
+      if (t && p.t > 0.6) {
+        const a = Math.atan2(t.cy - p.y, t.cx - p.x);
+        p.vx += Math.cos(a) * 160 * dt;
+        p.vy += Math.sin(a) * 160 * dt;
+        const sp = Math.hypot(p.vx, p.vy);
+        if (sp > 125) { p.vx *= 125 / sp; p.vy *= 125 / sp; }
+      }
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      return true;
+    },
+    hit: (p, b) => p.t > 0.6 && circRect(p.x, p.y, 9, b),
+    draw(ctx, p, time) {
+      const f = Math.min(1, (p.life - p.t) * 2);
+      ctx.globalAlpha = f;
+      ctx.fillStyle = 'rgba(255,170,80,0.35)';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 15 + Math.sin(time * 6) * 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffe2a8';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#2a2016';
+      ctx.fillRect(p.x - 3, p.y - 1, 2, 2);
+      ctx.fillRect(p.x + 1, p.y - 1, 2, 2);
+      ctx.globalAlpha = 1;
+    },
+  },
+  // 반쪽 바닥 화염: 지정된 절반만 예고 후 타오름
+  halfline: {
+    light: 0,
+    update: () => true,
+    hit: (p, b) => p.t > p.ex.warn && p.t < p.ex.warn + 0.35 && rr({ x: p.ex.l, y: p.y - 46, w: p.ex.r - p.ex.l, h: 46 }, b),
+    draw(ctx, p, time) {
+      const w = p.ex.warn, L = p.ex.l, R = p.ex.r;
+      if (p.t < w) {
+        const k = p.t / w;
+        ctx.fillStyle = `rgba(255,170,80,${0.12 + k * 0.35 + Math.sin(time * 25) * 0.06 * k})`;
+        ctx.fillRect(L, p.y - 6 - k * 8, R - L, 6 + k * 8);
+        ctx.fillStyle = `rgba(255,230,160,${0.5 + k * 0.5})`;
+        for (let x = L + 20; x < R; x += 40) ctx.fillRect(x, p.y - 4 - k * 10 - ((time * 40 + x) % 8), 2, 3);
+      } else {
+        const k = Math.max(0, 1 - (p.t - w - 0.2) / 0.25);
+        for (let x = L; x < R; x += 22) {
+          const h = (34 + Math.sin(time * 30 + x) * 10) * k;
+          ctx.fillStyle = `rgba(255,140,50,${0.85 * k})`;
+          ctx.beginPath();
+          ctx.moveTo(x, p.y);
+          ctx.quadraticCurveTo(x + 11, p.y - h * 1.4, x + 22, p.y);
+          ctx.fill();
+        }
+      }
+    },
+  },
+});
 
 export function makeProj(id, type, x, y, vx, vy, o = {}) {
   return { id, type, x, y, vx, vy, t: 0, life: o.life || 2, ex: o };

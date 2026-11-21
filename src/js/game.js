@@ -2,7 +2,7 @@
 import { TILE, VIEW_H, clamp, rand, overlap, fmtTime, lsGet } from './core/util.js';
 import { input } from './core/input.js';
 import { audio } from './core/audio.js';
-import { settings, profile, saveProfile, MASKS } from './core/settings.js';
+import { settings, profile, saveProfile, MASKS, looks, LIGHT_COLORS } from './core/settings.js';
 import { loadWorld, saveWorld, newWorldSave } from './core/save.js';
 import { World } from './world/world.js';
 import { STORY, COURSES, RUSH, RUSH_ORDER, ZONES } from './world/data.js';
@@ -12,7 +12,7 @@ import { TerrainRenderer } from './render/terrain.js';
 import { Background, makeSoft } from './render/background.js';
 import { Lighting } from './render/lighting.js';
 import { fx } from './render/fx.js';
-import { drawMoth, drawNameTag } from './render/drawPlayer.js';
+import { drawMoth, drawNameTag, slashRGB } from './render/drawPlayer.js';
 import { drawObject, drawCoin } from './render/drawObjects.js';
 import { Player } from './entities/player.js';
 import { RemotePlayer } from './entities/remote.js';
@@ -392,9 +392,10 @@ export class Game {
         if (s.ak > 0 && this.mode !== 'race' && s.rm === (this.currentRoom && this.currentRoom.id)) {
           const r = p.rp;
           const f = s.f;
-          if (s.ad === 'up') fx.slash(r.cx, r.y - 6, 'up', f);
-          else if (s.ad === 'down') fx.slash(r.cx, r.y + r.h + 8, 'down', f);
-          else fx.slash(r.cx + f * 34, r.cy - 2, 'side', f);
+          const sc = slashRGB(s.sc || 0);
+          if (s.ad === 'up') fx.slash(r.cx, r.y - 6, 'up', f, sc);
+          else if (s.ad === 'down') fx.slash(r.cx, r.y + r.h + 8, 'down', f, sc);
+          else fx.slash(r.cx + f * 34, r.cy - 2, 'side', f, sc);
           audio.play('slash', { vol: 0.4 });
         }
       }
@@ -585,7 +586,7 @@ export class Game {
 
     // 피격 판정
     if (P.invul > 0 || P.busy || P.sitting) return;
-    const pb = { x: P.x + 3, y: P.y + 4, w: P.w - 6, h: P.h - 6 };
+    const pb = { x: P.x + 5, y: P.y + 10, w: P.w - 10, h: P.h - 13 }; // 관대한 피격 판정
     for (const e of enemies) {
       if (e.room !== roomId) continue;
       const def = DEFS[e.kind];
@@ -814,7 +815,7 @@ export class Game {
         this._flood(d.room, d.on, d.fy);
         break;
       case 'issenWarn':
-        this.warnLine = { y: d.y, l: d.l, r: d.r, t: 1.1, max: 1.1 };
+        this.warnLine = { y: d.y, l: d.l, r: d.r, t: 1.45, max: 1.45 };
         audio.play('charge');
         break;
       case 'issen':
@@ -914,8 +915,7 @@ export class Game {
     const ember = P.ember;
     P.reset(b.x, b.y);
     P.ember = ember;
-    P.cloak = profile.cloak;
-    P.mask = profile.mask;
+    Object.assign(P, looks());
     fx.reset();
     this.fade = 1;
     const room = this.world.roomAt(P.cx, P.cy);
@@ -1289,7 +1289,9 @@ export class Game {
       const w = this.warnLine;
       const k = 1 - w.t / w.max;
       ctx.fillStyle = `rgba(255,220,150,${0.15 + k * 0.5 + Math.sin(time * 40) * 0.1})`;
-      ctx.fillRect(w.l, w.y - 34 - k * 2, w.r - w.l, 4 + k * 6);
+      ctx.fillRect(w.l, w.y - 30 - k * 2, w.r - w.l, 4 + k * 6);
+      ctx.fillStyle = `rgba(255,220,150,${0.06 + k * 0.1})`;
+      ctx.fillRect(w.l, w.y - 48, w.r - w.l, 40);
       this.light.light((w.l + w.r) / 2, w.y - 30, 600, 0.4 * k);
     }
 
@@ -1378,6 +1380,7 @@ export class Game {
       drawNameTag(ctx, ds, p.name, this.mode === 'race' ? '#b8d8d4' : '#ffd58a');
       if (this.mode !== 'race') {
         this.light.light(p.rp.cx, p.rp.cy, 200, 0.8);
+        this.light.glow(p.rp.cx, p.rp.cy - 10, 60, LIGHT_COLORS[s.lc || 0].kind, 0.2);
         if (s.dn) this.light.glow(p.rp.cx, p.rp.cy, 40, 'amber', 0.5);
       }
     }
@@ -1385,11 +1388,12 @@ export class Game {
     // 로컬 플레이어
     for (const t of P.trail) {
       ctx.globalAlpha = (t.t / 0.18) * 0.35;
-      drawMoth(ctx, { x: t.x, y: t.y, w: P.w, h: P.h, facing: t.f, anim: 'dash', animT: 0, cloak: P.cloak, mask: P.mask, ghost: false }, time);
+      drawMoth(ctx, { x: t.x, y: t.y, w: P.w, h: P.h, facing: t.f, anim: 'dash', animT: 0, cloak: P.cloak, mask: P.mask, antenna: P.antenna, acc: P.acc, sword: P.sword, ghost: false }, time);
     }
     ctx.globalAlpha = 1;
     if (P.hazardT <= 0 || P.hazardT > 0.55) drawMoth(ctx, P, time);
     this.light.light(P.cx, P.cy - 10, P.downed ? 140 : 300, 1);
+    this.light.glow(P.cx, P.cy - 10, 70, LIGHT_COLORS[P.lightC || 0].kind, 0.22);
     if (P.focusT > 0) this.light.glow(P.cx, P.cy, 50 + P.focusT * 30, 'amber', 0.6);
 
     // 상호작용 안내
