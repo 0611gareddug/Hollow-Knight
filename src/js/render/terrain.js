@@ -33,7 +33,17 @@ export class TerrainRenderer {
     const spikes = new Path2D();
     const spikeTips = new Path2D();
     const liquids = [];
+    const band1 = new Path2D(); // 윗면 아래 빛 번짐 (가까운 층)
+    const band2 = new Path2D(); // 더 넓고 흐린 층
+    const roots = new Path2D(); // 천장에서 늘어진 뿌리/덩굴 (선)
+    const pebbles = new Path2D(); // 바닥 위 조약돌/풀덩이 (실루엣)
+    const flowers = []; // 하늘 정원 꽃
+    const glows = []; // 빛나는 장식 {x,y,r,c,ph,kind}
     let hasSolid = false;
+    const zoneAt = (i, j) => {
+      const k = w.roomMap[j * w.W + i];
+      return k >= 0 ? w.rooms[k].zone : 1;
+    };
     const tx0 = cx * CH, ty0 = cy * CH;
     const S = (i, j) => isSolidT(w.get(i, j)) && w.get(i, j) === T_SOLID;
     for (let j = ty0; j < ty0 + CH; j++) {
@@ -70,6 +80,19 @@ export class TerrainRenderer {
             }
             solid.closePath();
             rim.rect(x, y - 1, TILE, 2.4);
+            band1.rect(x, y + 1.4, TILE, 5);
+            band2.rect(x, y + 6, TILE, 12);
+            const zn = zoneAt(i, j - 1);
+            // 바닥 장식
+            if (rnd() < 0.16) {
+              const px = x + 4 + rnd() * (TILE - 8);
+              pebbles.ellipse(px, y - 1, 3 + rnd() * 4, 2 + rnd() * 2.5, 0, Math.PI, 0);
+            }
+            if (zn === 2 && rnd() < 0.28) glows.push({ x: x + rnd() * TILE, y: y - 2 - rnd() * 4, r: 1.6 + rnd() * 1.4, c: '120,255,220', ph: rnd() * 6, kind: 'dot' });
+            if (zn === 1 && rnd() < 0.08) glows.push({ x: x + rnd() * TILE, y: y - 1, r: 1.4, c: '255,170,80', ph: rnd() * 6, kind: 'dot' });
+            if (zn === 3 && rnd() < 0.1) glows.push({ x: x + 6 + rnd() * (TILE - 12), y: y, r: 4 + rnd() * 4, c: '190,140,255', ph: rnd() * 6, kind: 'crystal' });
+            if (zn === 6 && rnd() < 0.3) flowers.push({ x: x + rnd() * TILE, y: y - 1, c: rnd() < 0.5 ? '#f4f0ff' : '#ffc6d9', h: 4 + rnd() * 6 });
+            if (zn === 7 && rnd() < 0.12) glows.push({ x: x + rnd() * TILE, y: y + 4 + rnd() * 12, r: 2, c: '255,110,50', ph: rnd() * 6, kind: 'crack' });
             if (rnd() < 0.5) {
               const gx = x + rnd() * TILE;
               const h = 4 + rnd() * 9;
@@ -107,7 +130,20 @@ export class TerrainRenderer {
               solid.closePath();
             }
             rimSide.rect(x, y + TILE - 1.5, TILE, 1.5);
+            // 늘어진 뿌리/덩굴 (구역마다 길이 다름)
+            const zn2 = zoneAt(i, j + 1);
+            if (rnd() < (zn2 === 2 || zn2 === 6 ? 0.32 : zn2 === 5 ? 0.05 : 0.18)) {
+              const rx = x + 4 + rnd() * (TILE - 8);
+              const len = 14 + rnd() * (zn2 === 2 ? 70 : 40);
+              const sway = (rnd() - 0.5) * 16;
+              roots.moveTo(rx, y + TILE);
+              roots.bezierCurveTo(rx + sway, y + TILE + len * 0.4, rx - sway, y + TILE + len * 0.7, rx + sway * 0.5, y + TILE + len);
+              if (zn2 === 2 && rnd() < 0.5) glows.push({ x: rx + sway * 0.5, y: y + TILE + len, r: 2.2, c: '120,255,220', ph: rnd() * 6, kind: 'dot' });
+              if (zn2 === 6 && rnd() < 0.4) flowers.push({ x: rx + sway * 0.5, y: y + TILE + len + 2, c: '#f4f0ff', h: -3 });
+            }
           }
+          if ((lf || rt) && zoneAt(i, j) === 5 && rnd() < 0.18) glows.push({ x: lf ? x + 4 : x + TILE - 4, y: y + 6 + rnd() * 20, r: 1.6, c: '160,140,110', ph: 0, kind: 'rivet' });
+          if ((lf || rt) && zoneAt(i, j) === 7 && rnd() < 0.15) glows.push({ x: lf ? x + 3 : x + TILE - 3, y: y + rnd() * TILE, r: 2, c: '255,110,50', ph: rnd() * 6, kind: 'crack' });
           if (lf) {
             solid.moveTo(x + 1, y);
             let py = y;
@@ -184,7 +220,7 @@ export class TerrainRenderer {
         }
       }
     }
-    return { solid, rim, rimSide, crack, plat, platRim, spikes, spikeTips, liquids, hasSolid };
+    return { solid, rim, rimSide, crack, plat, platRim, spikes, spikeTips, liquids, hasSolid, band1, band2, roots, pebbles, flowers, glows };
   }
 
   draw(ctx, view, pal, time) {
@@ -236,8 +272,70 @@ export class TerrainRenderer {
     for (const c of list) if (c.hasSolid) ctx.stroke(c.crack);
     ctx.fillStyle = pal.rimDim;
     for (const c of list) if (c.hasSolid) ctx.fill(c.rimSide);
+    // 윗면 아래 은은한 빛 번짐 → 입체감
+    ctx.globalAlpha = 0.32;
+    ctx.fillStyle = pal.rimDim;
+    for (const c of list) if (c.hasSolid) ctx.fill(c.band1);
+    ctx.globalAlpha = 0.12;
+    for (const c of list) if (c.hasSolid) ctx.fill(c.band2);
+    ctx.globalAlpha = 1;
     ctx.fillStyle = pal.rim;
     for (const c of list) if (c.hasSolid) ctx.fill(c.rim);
+    // 장식: 뿌리/덩굴, 조약돌, 꽃
+    ctx.strokeStyle = pal.solid;
+    ctx.lineWidth = 2;
+    for (const c of list) if (c.hasSolid) ctx.stroke(c.roots);
+    ctx.fillStyle = pal.solid;
+    for (const c of list) if (c.hasSolid) ctx.fill(c.pebbles);
+    for (const c of list)
+      for (const f of c.flowers) {
+        ctx.strokeStyle = pal.solid2;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(f.x, f.y);
+        ctx.lineTo(f.x + Math.sin(time * 2 + f.x) * 1.2, f.y - f.h);
+        ctx.stroke();
+        ctx.fillStyle = f.c;
+        ctx.fillRect(f.x - 1.5 + Math.sin(time * 2 + f.x) * 1.2, f.y - f.h - 1.5, 3, 3);
+      }
+    // 빛나는 장식 (이끼 점, 수정, 불씨 균열, 리벳)
+    for (const c of list)
+      for (const g of c.glows) {
+        if (g.kind === 'rivet') {
+          ctx.fillStyle = `rgb(${g.c})`;
+          ctx.fillRect(g.x - 1.2, g.y - 1.2, 2.4, 2.4);
+          continue;
+        }
+        const a = 0.55 + 0.45 * Math.sin(time * 1.8 + g.ph);
+        if (g.kind === 'crystal') {
+          ctx.fillStyle = `rgba(${g.c},${0.55 + a * 0.35})`;
+          ctx.beginPath();
+          ctx.moveTo(g.x - g.r * 0.5, g.y);
+          ctx.lineTo(g.x - g.r * 0.2, g.y - g.r * 2.2);
+          ctx.lineTo(g.x + g.r * 0.4, g.y - g.r * 1.4);
+          ctx.lineTo(g.x + g.r * 0.6, g.y);
+          ctx.fill();
+          ctx.fillStyle = `rgba(${g.c},${0.12 * a})`;
+          ctx.beginPath();
+          ctx.arc(g.x, g.y - g.r, g.r * 3, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (g.kind === 'crack') {
+          ctx.strokeStyle = `rgba(${g.c},${0.35 + a * 0.5})`;
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.moveTo(g.x, g.y);
+          ctx.lineTo(g.x + 3, g.y + 6);
+          ctx.lineTo(g.x - 1, g.y + 11);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = `rgba(${g.c},${0.15 * a})`;
+          ctx.beginPath();
+          ctx.arc(g.x, g.y, g.r * 3.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = `rgba(${g.c},${0.6 + 0.4 * a})`;
+          ctx.fillRect(g.x - g.r / 2, g.y - g.r / 2, g.r, g.r);
+        }
+      }
     ctx.fillStyle = pal.solid;
     for (const c of list) if (c.hasSolid) ctx.fill(c.spikes);
     ctx.fillStyle = 'rgba(230,225,210,0.75)';

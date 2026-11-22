@@ -154,7 +154,26 @@ export function drawObject(ctx, o, time, pal, state) {
     case 'pickup': {
       if (state && state.taken) return;
       const by = y - 14 + Math.sin(time * 2.5 + x) * 3;
-      if (o.kind === 'shard') {
+      if (o.kind === 'charm') {
+        ctx.fillStyle = '#2a2016';
+        ctx.beginPath();
+        ctx.arc(x, by, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffd58a';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#ffd58a';
+        ctx.beginPath();
+        ctx.moveTo(x, by - 5);
+        ctx.lineTo(x + 4, by);
+        ctx.lineTo(x, by + 5);
+        ctx.lineTo(x - 4, by);
+        ctx.fill();
+        ctx.strokeStyle = `rgba(255,220,150,${0.4 + Math.sin(time * 4) * 0.3})`;
+        ctx.beginPath();
+        ctx.arc(x, by, 15 + Math.sin(time * 3) * 2, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (o.kind === 'shard') {
         ctx.fillStyle = '#f2eee2';
         ctx.beginPath();
         ctx.moveTo(x, by - 9);

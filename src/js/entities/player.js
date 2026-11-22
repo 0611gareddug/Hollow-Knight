@@ -5,6 +5,7 @@ import { fx } from '../render/fx.js';
 import { profile, looks } from '../core/settings.js';
 import { slashRGB } from '../render/drawPlayer.js';
 import { isSolidT, T_SPIKE } from '../world/tiles.js';
+import { hasCharm } from '../core/charms.js';
 
 export const PH = {
   RUN: 330,
@@ -84,7 +85,7 @@ export class Player {
     this.hazardT = 0;
     this.lastSafe = { x: this.x, y: this.y };
     this.safeT = 0;
-    this.maxHp = 5 + (profile.bonusMasks || 0);
+    this.maxHp = this.calcMaxHp();
     this.hp = this.maxHp;
     this.ember = 0;
     this.airT = 0;
@@ -98,15 +99,20 @@ export class Player {
 
   get cx() { return this.x + this.w / 2; }
   get cy() { return this.y + this.h / 2; }
-  get nailDmg() { return 5 + 4 * (profile.nail || 0); }
+  get nailDmg() { return this.pvp ? 5 : 5 + 4 * (profile.nail || 0) + (hasCharm('fury') ? 3 : 0); }
+  get runSpd() { return PH.RUN * (hasCharm('swiftwing') ? 1.12 : 1); }
+  get focusTime() { return hasCharm('deepfocus') ? (hasCharm('swiftfocus') ? 0.85 : 1.25) : hasCharm('swiftfocus') ? 0.55 : PH.FOCUS_T; }
+  calcMaxHp() { return this.pvp ? 5 : 5 + (profile.bonusMasks || 0) + (hasCharm('hardmask') ? 1 : 0); }
   get busy() { return this.dead || this.downed || this.hazardT > 0; }
 
   attackBox() {
     if (this.atkT <= 0.16 - PH.ATK_ACTIVE) return null;
     const cx = this.cx, f = this.facing;
-    if (this.atkDir === 'up') return { x: cx - 28, y: this.y - 62, w: 56, h: 72 };
-    if (this.atkDir === 'down') return { x: cx - 26, y: this.y + this.h - 8, w: 52, h: 66 };
-    return { x: f > 0 ? cx + 4 : cx - 4 - 74, y: this.cy - 26, w: 74, h: 46 };
+    const k = hasCharm('longwick') ? 1.25 : 1;
+    if (this.atkDir === 'up') return { x: cx - 28 * k, y: this.y - 62 * k, w: 56 * k, h: 72 * k };
+    if (this.atkDir === 'down') return { x: cx - 26 * k, y: this.y + this.h - 8, w: 52 * k, h: 66 * k };
+    const w = 74 * k;
+    return { x: f > 0 ? cx + 4 : cx - 4 - w, y: this.cy - 26, w, h: 46 };
   }
 
   update(dt, inp, g) {
@@ -194,9 +200,9 @@ export class Player {
         const a = rand(0, 6.28);
         fx.add({ kind: 'glow', x: this.cx + Math.cos(a) * 40, y: this.cy + Math.sin(a) * 40, vx: -Math.cos(a) * 90, vy: -Math.sin(a) * 90, life: 0.4, size: 2, color: '#ffc27a', grav: 0, drag: 0, add: true });
       }
-      if (this.focusT >= PH.FOCUS_T) {
+      if (this.focusT >= this.focusTime) {
         this.ember -= PH.EMBER_COST;
-        if (this.hp < this.maxHp) this.hp++;
+        if (this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + (hasCharm('deepfocus') ? 2 : 1));
         else g.healAlly(this);
         this.focusT = 0.0001;
         if (this.focusSnd) this.focusSnd.stop();
@@ -240,11 +246,12 @@ export class Player {
     else if (this.dashBuf > 0) this.dashBuf -= dt;
     if (this.dashT > 0) {
       this.dashT -= dt;
+      if (hasCharm('shadedash')) this.invul = Math.max(this.invul, this.dashT + 0.05);
       this.vx = this.facing * PH.DASH_V;
       this.vy = 0;
       if (Math.random() < 0.8) fx.add({ kind: 'dust', x: this.cx - this.facing * 10, y: this.cy + rand(-10, 10), vx: -this.facing * 60, vy: rand(-20, 20), life: 0.35, size: 5, color: '#cfd8d6', grav: 0, drag: 3 });
       this.trail.push({ x: this.x, y: this.y, t: 0.18, f: this.facing });
-      if (this.dashT <= 0) this.vx = this.facing * PH.RUN;
+      if (this.dashT <= 0) this.vx = this.facing * this.runSpd;
     } else if (control && (inp.pressed.dash || this.dashBuf > 0) && ab.dash && this.dashCD <= 0 && (this.grounded || this.airDash || sliding)) {
       this.dashBuf = 0;
       if (sliding) this.facing = -touchWall;
@@ -265,7 +272,7 @@ export class Player {
       } else if (this.wjLock > 0) {
         // 벽 점프 직후 잠시 방향 고정
       } else if (control) {
-        this.vx = dirX * PH.RUN;
+        this.vx = dirX * this.runSpd;
         if (dirX) this.facing = dirX;
       } else {
         this.vx *= 0.92;
@@ -603,6 +610,7 @@ export class Player {
   }
 
   gainEmber(n) {
+    if (hasCharm('ember')) n = Math.round(n * 1.5);
     this.ember = Math.min(PH.EMBER_MAX, this.ember + n);
   }
 
@@ -672,13 +680,14 @@ export class Player {
 
 // 사슬 목표 찾기: 조준 원뿔 안의 고리 → 적 → 조준선 위 벽 (가시 제외)
 export function findHookTarget(ox, oy, ax, ay, g, wide = false) {
+  const rk = hasCharm('ironchain') ? 1.2 : 1;
   // 마우스는 정밀 조준, 키보드·패드·터치는 넓은 자동 조준
   const cone = wide ? 1.05 : 0.6, econe = wide ? 0.75 : 0.42;
   const W = g.world;
   let best = null, bs = 1e9;
   for (const a of g.anchors || []) {
     const dx = a.x - ox, dy = a.y - oy, d = Math.hypot(dx, dy);
-    if (d > 400 || d < 24) continue;
+    if (d > 400 * rk || d < 24) continue;
     const ang = Math.acos(clamp((dx * ax + dy * ay) / d, -1, 1));
     if (ang > cone) continue;
     if (!W.lineClear(ox, oy, a.x, a.y)) continue;
@@ -692,7 +701,7 @@ export function findHookTarget(ox, oy, ax, ay, g, wide = false) {
     for (const e of g.hookEnemies()) {
       const ex = e.x + e.w / 2, ey = e.y + e.h / 2;
       const dx = ex - ox, dy = ey - oy, d = Math.hypot(dx, dy);
-      if (d > 340 || d < 24) continue;
+      if (d > 340 * rk || d < 24) continue;
       const ang = Math.acos(clamp((dx * ax + dy * ay) / d, -1, 1));
       if (ang > econe) continue;
       if (!W.lineClear(ox, oy, ex, ey)) continue;
@@ -703,7 +712,7 @@ export function findHookTarget(ox, oy, ax, ay, g, wide = false) {
       }
     }
   if (best) return best;
-  for (let t = 18; t <= 330; t += 6) {
+  for (let t = 18; t <= 330 * rk; t += 6) {
     const x = ox + ax * t, y = oy + ay * t;
     const tile = W.get(Math.floor(x / TILE), Math.floor(y / TILE));
     if (tile === T_SPIKE) return null;

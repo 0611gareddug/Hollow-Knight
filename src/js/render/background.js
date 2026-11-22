@@ -268,6 +268,35 @@ export function makeSoft(size, color) {
   return c;
 }
 
+function makeFore(zone) {
+  const c = document.createElement('canvas');
+  c.width = 900;
+  c.height = 120;
+  const g = c.getContext('2d');
+  const pal = PALETTES[zone];
+  const r = mulberry32(zone * 77 + 5);
+  g.fillStyle = pal.solid;
+  g.strokeStyle = pal.solid;
+  // 듬성듬성한 풀/돌무더기 (가운데는 비워 시야 확보)
+  for (let i = 0; i < 7; i++) {
+    const x = r() * 900;
+    if (r() < 0.5) {
+      g.beginPath();
+      g.ellipse(x, 120, 40 + r() * 70, 30 + r() * 30, 0, Math.PI, 0);
+      g.fill();
+    }
+    g.lineWidth = 3;
+    for (let k = 0; k < 9; k++) {
+      const bx = x + (r() - 0.5) * 90, h = 30 + r() * 60;
+      g.beginPath();
+      g.moveTo(bx, 120);
+      g.quadraticCurveTo(bx + (r() - 0.5) * 20, 120 - h * 0.6, bx + (r() - 0.5) * 30, 120 - h);
+      g.stroke();
+    }
+  }
+  return c;
+}
+
 export class Background {
   constructor() {
     this.zone = 0;
@@ -315,6 +344,48 @@ export class Background {
       const fy = 0.25 + ((k * 0.37) % 0.7);
       ctx.drawImage(this.fogBlob, fx * W - W * 0.35, fy * H - H * 0.25, W * 0.7, H * 0.5);
     }
+  }
+
+  // 위에서 비스듬히 내려오는 빛줄기 (화면 공간, 가산)
+  drawShafts(ctx, W, H, zoom, time, cam) {
+    const z = this.zone;
+    if (z === 7 || z === 4) return;
+    const col = z === 6 ? '255,250,230' : z === 2 ? '150,240,230' : z === 3 ? '200,170,255' : z === 5 ? '255,200,140' : '210,230,220';
+    const strength = z === 6 ? 0.09 : 0.055;
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 4; i++) {
+      const base = ((i * 0.31 + 0.12 - cam.x * 0.00012) % 1.2 + 1.2) % 1.2 - 0.1;
+      const x = base * W + Math.sin(time * 0.25 + i * 2) * W * 0.02;
+      const wTop = W * (0.03 + (i % 2) * 0.025), wBot = wTop * 3.2;
+      const a = strength * (0.6 + 0.4 * Math.sin(time * 0.5 + i * 1.7));
+      const g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, `rgba(${col},${a})`);
+      g.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + wTop, 0);
+      ctx.lineTo(x + wTop + H * 0.35 + wBot, H);
+      ctx.lineTo(x + H * 0.35, H);
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // 화면 가장자리 전경 실루엣 (카메라보다 빠르게 움직여 깊이감)
+  drawFore(ctx, cam, W, H, zoom) {
+    if (!this.fore || this.foreZone !== this.zone) {
+      this.foreZone = this.zone;
+      this.fore = makeFore(this.zone);
+    }
+    const f = this.fore;
+    const sc = zoom * 1.3;
+    const fw = f.width * sc, fh = f.height * sc;
+    let ox = -((cam.x * 1.3 * zoom) % fw);
+    if (ox > 0) ox -= fw;
+    ctx.globalAlpha = 0.92;
+    for (let x = ox; x < W; x += fw) ctx.drawImage(f, x, H - fh * 0.62, fw + 1, fh);
+    ctx.globalAlpha = 1;
   }
 
   drawMotes(ctx, cam, W, H, zoom, time) {

@@ -5,7 +5,7 @@ import { audio } from './core/audio.js';
 import { settings, profile, saveProfile, MASKS, looks, LIGHT_COLORS } from './core/settings.js';
 import { loadWorld, saveWorld, newWorldSave } from './core/save.js';
 import { World } from './world/world.js';
-import { STORY, COURSES, RUSH, RUSH_ORDER, ZONES } from './world/data.js';
+import { STORY, COURSES, RUSH, RUSH_ORDER, ZONES, PVP_ARENAS } from './world/data.js';
 import { T_LIQUID, T_EMPTY, T_SPIKE, T_GATE } from './world/tiles.js';
 import { PALETTES } from './render/palette.js';
 import { TerrainRenderer } from './render/terrain.js';
@@ -21,6 +21,7 @@ import { PROJ } from './entities/projectiles.js';
 import { floodTiles } from './entities/bosses.js';
 import { cx as ecx, cy as ecy } from './entities/common.js';
 import { HUD } from './ui/hud.js';
+import { hasCharm, grantCharm, BOSS_CHARM, CHARM_BY_ID, ensureCharms, charmState } from './core/charms.js';
 
 const STEP = 1 / 120;
 const NET_RATE = 1 / 20;
@@ -77,6 +78,8 @@ export class Game {
 
   // ═══════════════ 시작 ═══════════════
   _common(net, mode) {
+    charmState.disabled = mode === 'pvp';
+    this.pvp = null;
     input.resetCounts();
     input.counting = true;
     this.net = net || null;
@@ -175,6 +178,62 @@ export class Game {
     audio.music('zone3');
   }
 
+  // ═══ PvP 아레나 ═══
+  startPvp(net, arenaIdx, roster) {
+    this._common(net, 'pvp');
+    const A = PVP_ARENAS[arenaIdx] || PVP_ARENAS[0];
+    this.arena = A;
+    this._loadWorld(A);
+    this.abilities = { dash: true, wall: true, djump: true, hook: true };
+    this.save = newWorldSave();
+    charmState.disabled = true; // 모두 같은 조건
+    this._setupPeers(roster);
+    this.roster = (roster || [{ id: this.myId, name: profile.name }]).slice().sort((a, b) => a.id - b.id);
+    const scores = {};
+    for (const r of this.roster) scores[r.id] = 0;
+    this.pvp = { round: 0, scores, state: 'count', t: 2.5, msg: '', arenaIdx };
+    this.player = new Player(0, 0);
+    this.player.pvp = true;
+    this._pvpSpawn();
+    audio.music('boss');
+    this.menus.hideAll();
+  }
+  _pvpSpawn() {
+    const P = this.player;
+    const i = Math.max(0, this.roster.findIndex((r) => r.id === this.myId));
+    const sp = this.world.pvpSpawns[i % this.world.pvpSpawns.length];
+    P.reset(sp.x, sp.y);
+    P.pvp = true;
+    P.maxHp = P.hp = 5;
+    P.facing = sp.x < (this.world.rooms[0].px + this.world.rooms[0].pw / 2) ? 1 : -1;
+    P.invul = 1.2;
+    this.myBench = sp;
+    fx.reset();
+    this.fade = 0.8;
+    this.currentRoom = null;
+    this._snapCamera();
+  }
+  // 방장: 라운드 종료 판정
+  _pvpCheck() {
+    const V = this.pvp;
+    if (!this.isHost || V.state !== 'fight' || this.targets.length < 2) return;
+    const alive = this.targets.filter((t) => !t.downed);
+    if (alive.length <= 1) {
+      V.state = 'over';
+      const w = alive.length ? alive[0].id : null;
+      const scores = Object.assign({}, V.scores);
+      if (w != null) scores[w] = (scores[w] || 0) + 1;
+      const end = w != null && scores[w] >= 3;
+      this.event('pround', { w, scores, end: end ? 1 : 0 });
+      if (!end) setTimeout(() => { if (this.running && this.mode === 'pvp') this.event('pstart', { round: V.round + 1 }); }, 2600);
+    }
+  }
+  _pvpNames() {
+    const n = { [this.myId]: profile.name };
+    for (const [id, p] of this.peers) n[id] = p.name;
+    return n;
+  }
+
   _setupPeers(roster) {
     this.peers = new Map();
     if (!roster) return;
@@ -183,6 +242,8 @@ export class Game {
 
   stop(keepNet) {
     this.running = false;
+    charmState.disabled = false;
+    this.pvp = null;
     input.counting = false;
     if (this.net && !keepNet) this.net.close();
     this.net = null;
@@ -231,6 +292,11 @@ export class Game {
     net.on('heal', (m, from) => {
       if (this.isHost && m.to !== this.myId) this.net.send({ t: 'heal', to: m.to }, m.to);
       else if (m.to === this.myId) this._receiveHeal();
+    });
+    net.on('phit', (m, from) => {
+      if (this.mode !== 'pvp') return;
+      if (this.isHost && m.to !== this.myId) this.net.send(m, m.to);
+      else if (m.to === this.myId) this._receivePHit(m);
     });
     net.on('fin', (m, from) => {
       if (this.isHost && this.race) this._raceFinish(from, m.time);
@@ -350,6 +416,20 @@ export class Game {
 
     // 레이스 카운트다운 동안 정지
     let canMove = true;
+    if (this.pvp) {
+      const V = this.pvp;
+      if (V.state === 'count') {
+        canMove = false;
+        V.t -= dt;
+        const sec = Math.ceil(V.t);
+        if (sec !== V.lastSec && sec <= 3 && sec > 0) audio.play('beep');
+        V.lastSec = sec;
+        if (V.t <= 0) {
+          V.state = 'fight';
+          audio.play('go');
+        }
+      }
+    }
     if (this.race && this.race.state === 'count') {
       canMove = false;
       this.race.t -= dt;
@@ -387,6 +467,7 @@ export class Game {
     }
 
     this._combat(dt);
+    this._wisp(dt);
     this._interact(dt);
     this._coins(dt);
 
@@ -410,7 +491,7 @@ export class Game {
     }
 
     // 고치 부활
-    if (P.downed) {
+    if (P.downed && this.mode !== 'pvp') {
       let near = false;
       for (const p of this.peers.values()) {
         const s = p.rp.s;
@@ -436,7 +517,8 @@ export class Game {
     if (this.simAuth) {
       this.sim.updateHost(dt);
       if (this.mode === 'story') this._bossTriggers();
-      if (this.mode !== 'race') this._wipeCheck(dt);
+      if (this.mode === 'pvp') this._pvpCheck();
+      else if (this.mode !== 'race') this._wipeCheck(dt);
       if (this.rush) this._rushStep(dt);
     } else this.sim.updateClient(dt);
 
@@ -552,6 +634,22 @@ export class Game {
           P.onHitRecoil('enemy');
         }
       }
+      // PvP: 다른 플레이어 베기 (맞는 쪽이 무적 여부를 판단)
+      if (this.mode === 'pvp' && this.pvp.state === 'fight')
+        for (const [id, p] of this.peers) {
+          const s = p.rp.s;
+          if (!s || s.dn || s.hz || P.atkHit.has('p' + id)) continue;
+          const rb = { x: p.rp.x + 2, y: p.rp.y + 2, w: 16, h: 34 };
+          if (!overlap(box, rb)) continue;
+          P.atkHit.add('p' + id);
+          this._sendPHit(id, P.atkDir);
+          const hx = p.rp.cx, hy = p.rp.cy;
+          audio.play('hit');
+          fx.hitstop(0.06);
+          fx.shake(4, 0.12);
+          fx.burst(hx, hy, 8, { kind: 'spark', color: '#ffffff', smin: 300, smax: 700, grav: 0, add: true, lmin: 0.08, lmax: 0.18 });
+          P.onHitRecoil('enemy');
+        }
       // 부서지는 벽
       for (const b of W.breakables) {
         if (b.broken || P.atkHit.has('b' + b.id)) continue;
@@ -631,7 +729,69 @@ export class Game {
     const hp = P.hp;
     if (P.hurt(dmg, srcX)) {
       if (this.mode === 'race') P.hp = hp;
+      if (hasCharm('thorns') && this.mode !== 'race') this._thorns();
       if (P.hp <= 0) this._onZeroHp();
+    }
+  }
+
+  // 반격의 가시: 주변 적에게 피해
+  _thorns() {
+    const P = this.player;
+    const rid = this.currentRoom && this.currentRoom.id;
+    fx.ring(P.cx, P.cy, 10, 130, 0.35, '255,120,100', 4);
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      fx.add({ kind: 'spark', x: P.cx, y: P.cy, vx: Math.cos(a) * 500, vy: Math.sin(a) * 500, life: 0.2, size: 3, color: '#ff9a8a', grav: 0, drag: 2, add: true });
+    }
+    for (const e of this.sim.list()) {
+      if (e.room !== rid) continue;
+      const ex = e.x + e.w / 2, ey = e.y + e.h / 2;
+      if (Math.hypot(ex - P.cx, ey - P.cy) > 140) continue;
+      this._remoteHit(e, 8, ex, ey);
+    }
+  }
+  // 부가 피해 (가시, 떠도는 불씨): 방장/참가자 공통 경로
+  _remoteHit(e, dmg, hx, hy) {
+    const P = this.player;
+    if (this.simAuth) this.sim.hit(e.id, dmg, P.cx, 'side', this.myId);
+    else {
+      e.fl = 0.09;
+      this.net.send({ t: 'hit', id: e.id, dmg, fx: P.cx, dir: 'side', hx, hy });
+    }
+    fx.burst(hx, hy, 5, { kind: 'spark', color: '#ffd58a', smin: 200, smax: 400, grav: 0, add: true, lmin: 0.08, lmax: 0.16 });
+    audio.play('hit', { vol: 0.45, pitch: 1.3 });
+  }
+
+  _wisp(dt) {
+    const P = this.player;
+    if (!hasCharm('wisp') || this.mode === 'race' || this.mode === 'pvp' || P.busy) {
+      this.wisp = null;
+      return;
+    }
+    const w = (this.wisp = this.wisp || { a: 0, cd: 1, x: P.cx, y: P.cy });
+    w.a += dt * 3;
+    const tx = P.cx + Math.cos(w.a) * 42, ty = P.cy - 14 + Math.sin(w.a) * 26;
+    w.x += (tx - w.x) * Math.min(1, dt * 10);
+    w.y += (ty - w.y) * Math.min(1, dt * 10);
+    w.cd -= dt;
+    if (w.cd <= 0) {
+      const rid = this.currentRoom && this.currentRoom.id;
+      let best = null, bd = 190;
+      for (const e of this.sim.list()) {
+        if (e.room !== rid) continue;
+        const d = Math.hypot(e.x + e.w / 2 - P.cx, e.y + e.h / 2 - P.cy);
+        if (d < bd) { bd = d; best = e; }
+      }
+      if (best) {
+        w.cd = 1.1;
+        const hx = best.x + best.w / 2, hy = best.y + best.h / 2;
+        w.shot = { x0: w.x, y0: w.y, x1: hx, y1: hy, t: 0.12 };
+        this._remoteHit(best, 4, hx, hy);
+      } else w.cd = 0.2;
+    }
+    if (w.shot) {
+      w.shot.t -= dt;
+      if (w.shot.t <= 0) w.shot = null;
     }
   }
 
@@ -643,7 +803,8 @@ export class Game {
     audio.play('cocoon');
     fx.grayscale(0.8);
     fx.burst(P.cx, P.cy, 20, { kind: 'shard', color: '#dcd4c2', smin: 80, smax: 300, szmin: 3, szmax: 6 });
-    if (this.peers.size > 0 && this.mode !== 'race') this.showToast('고치가 되었습니다 — 동료가 곁에 머물면 부활합니다', 3);
+    if (this.mode === 'pvp') this.showToast('쓰러졌다… 다음 라운드를 기다리세요', 2.2);
+    else if (this.peers.size > 0 && this.mode !== 'race') this.showToast('고치가 되었습니다 — 동료가 곁에 머물면 부활합니다', 3);
   }
 
   _wipeCheck(dt) {
@@ -789,6 +950,15 @@ export class Game {
           this.save.bosses[d.kind] = true;
           if (room.boss) this.world.setGates(room.boss.gates, false);
           if (!profile.beaten) profile.beaten = [];
+          if (BOSS_CHARM[d.kind] && grantCharm(BOSS_CHARM[d.kind])) {
+            const C = CHARM_BY_ID[BOSS_CHARM[d.kind]];
+            setTimeout(() => this.showToast(`부적 획득: ${C.name}`, 4, `${C.desc} · 벤치에서 장착`), 2600);
+          }
+          if (d.kind === 'keeper' && !profile.notchKeeper) {
+            ensureCharms();
+            profile.notchKeeper = 1;
+            profile.notches = Math.min(6, profile.notches + 1);
+          }
           if (!profile.beaten.includes(d.kind)) {
             profile.beaten.push(d.kind);
             saveProfile();
@@ -883,6 +1053,38 @@ export class Game {
       case 'rushEnd':
         if (this.rush) this._rushEnd(d.ok, d.time);
         break;
+      case 'pround': {
+        const V = this.pvp;
+        if (!V) break;
+        V.state = 'over';
+        V.scores = d.scores;
+        const names = this._pvpNames();
+        V.msg = d.w == null ? '무승부' : `${names[d.w] || '?'} 승리!`;
+        V.msgT = 2.5;
+        audio.play(d.w === this.myId ? 'victory' : 'bell');
+        fx.slowmo(0.3, 0.8);
+        if (d.end) {
+          setTimeout(() => {
+            if (!this.running) return;
+            this.ended = true;
+            input.enabled = false;
+            const list = Object.keys(names).map((id) => ({ name: names[id], score: V.scores[id] || 0, me: Number(id) === this.myId }));
+            list.sort((a, b) => b.score - a.score);
+            this.menus.showPvpResults(list, this.isHost, !!this.net);
+          }, 2200);
+        }
+        break;
+      }
+      case 'pstart': {
+        const V = this.pvp;
+        if (!V) break;
+        V.round = d.round;
+        V.state = 'count';
+        V.t = 2.2;
+        V.msg = '';
+        this._pvpSpawn();
+        break;
+      }
       case 'rushHeal':
         break;
     }
@@ -969,8 +1171,32 @@ export class Game {
     if (input.mouseX == null || !this.cam) return null;
     return { x: (input.mouseX * this.dpr) / this.zoom + this.cam.x, y: (input.mouseY * this.dpr) / this.zoom + this.cam.y };
   }
+  _sendPHit(id, dir) {
+    const P = this.player;
+    const m = { t: 'phit', to: id, fx: P.cx, by: this.myId };
+    if (this.isHost) this.net.send(m, id);
+    else this.net.send(m);
+  }
+  _receivePHit(m) {
+    const P = this.player;
+    if (!this.pvp || this.pvp.state !== 'fight') return;
+    if (P.hurt(1, m.fx) && P.hp <= 0) {
+      P.downed = true;
+      audio.play('cocoon');
+      fx.grayscale(1);
+      this.showToast('쓰러졌다… 다음 라운드를 기다리세요', 2.2);
+    }
+  }
   hookEnemies() {
     const rid = this.currentRoom && this.currentRoom.id;
+    if (this.mode === 'pvp') {
+      const out = [];
+      for (const [id, p] of this.peers) {
+        const s = p.rp.s;
+        if (s && !s.dn && !s.hz) out.push({ id: 'p' + id, x: p.rp.x, y: p.rp.y, w: 20, h: 38 });
+      }
+      return out;
+    }
     return this.sim.list().filter((e) => {
       if (e.room !== rid) return false;
       const d = DEFS[e.kind];
@@ -981,22 +1207,36 @@ export class Game {
     });
   }
   enemyPos(id) {
+    if (typeof id === 'string' && id[0] === 'p') {
+      const p = this.peers.get(Number(id.slice(1)));
+      return p && p.rp.s && !p.rp.s.dn ? { x: p.rp.cx, y: p.rp.cy } : null;
+    }
     const e = this.sim.list().find((q) => q.id === id);
     return e ? { x: e.x + e.w / 2, y: e.y + e.h / 2 } : null;
   }
   // 사슬로 끌려가 베기 (일반 베기와 같은 판정)
   hookStrike(id, P) {
+    if (typeof id === 'string' && id[0] === 'p') {
+      this._sendPHit(Number(id.slice(1)), 'side');
+      audio.play('hit');
+      audio.play('slash', { pitch: 1.2 });
+      fx.hitstop(0.07);
+      const pp = this.enemyPos(id);
+      if (pp) fx.burst(pp.x, pp.y, 10, { kind: 'spark', color: '#ffd58a', smin: 300, smax: 700, grav: 0, add: true, lmin: 0.08, lmax: 0.2 });
+      return;
+    }
     const e = this.sim.list().find((q) => q.id === id);
     if (!e) return;
     const def = DEFS[e.kind];
     const hx = e.x + e.w / 2, hy = e.y + e.h / 2;
     let res;
-    if (this.simAuth) res = this.sim.hit(e.id, P.nailDmg, P.cx, 'down', this.myId);
+    const hdmg = P.nailDmg * (hasCharm('ironchain') ? 2 : 1);
+    if (this.simAuth) res = this.sim.hit(e.id, hdmg, P.cx, 'down', this.myId);
     else {
       const blk = (def.boss && e.st === 'intro') || (def.blocks && def.blocks(e, P.cx, 'down'));
       res = blk ? 'block' : 'hit';
       if (!blk) e.fl = 0.09;
-      this.net.send({ t: 'hit', id: e.id, dmg: P.nailDmg, fx: P.cx, dir: 'down', hx, hy });
+      this.net.send({ t: 'hit', id: e.id, dmg: hdmg, fx: P.cx, dir: 'down', hx, hy });
     }
     if (this.net && this.isHost && this.mode !== 'race' && res) this.net.send({ t: 'ev', n: 'hfx', d: { x: hx, y: hy, b: res === 'block' ? 1 : 0, by: this.myId } });
     if (res === 'block') {
@@ -1053,6 +1293,19 @@ export class Game {
           if (dx < 36 && Math.abs(dy) < 20 && P.grounded && !P.sitting) {
             this.prompt = { x: o.x, y: o.y - 60, text: '앉기' };
             if (input.pressed.up) this._sit(o);
+          } else if (P.sitting && dx < 40 && this.mode === 'story') {
+            this.prompt = { x: o.x, y: o.y - 72, text: '벤치 메뉴 (부적 · 빠른 이동)' };
+            if (input.pressed.up) {
+              input.consume('up');
+              audio.play('uiOk');
+              input.enabled = false;
+              this.menus.openBench(this, () => {
+                input.enabled = true;
+                input.clearAll();
+                P.maxHp = P.calcMaxHp();
+                if (P.hp > P.maxHp) P.hp = P.maxHp;
+              });
+            }
           }
           break;
         case 'shop':
@@ -1065,7 +1318,7 @@ export class Game {
               this.menus.openShop(() => {
                 input.enabled = true;
                 input.clearAll();
-                P.maxHp = 5 + (profile.bonusMasks || 0);
+                P.maxHp = P.calcMaxHp();
               });
             }
           }
@@ -1081,6 +1334,23 @@ export class Game {
       }
     }
     if (this.race && this.race.state === 'run' && this.race.fin == null && this.world.finish && overlap(P, this.world.finish)) this._myFinish();
+  }
+
+  // 다녀간 벤치 목록 (빠른 이동)
+  benchList() {
+    return this.world.objects.filter((o) => o.type === 'bench' && this.save.explored[o.room]).map((o) => ({ o, room: this.world.roomById[o.room] }));
+  }
+  warpTo(o) {
+    const P = this.player;
+    audio.play('teleport');
+    fx.reset();
+    P.reset(o.x, o.y);
+    Object.assign(P, looks());
+    this.fade = 1;
+    const room = this.world.roomAt(P.cx, P.cy);
+    if (room) this._enterRoom(room);
+    this._snapCamera();
+    this._sit(o);
   }
 
   _sit(o) {
@@ -1134,10 +1404,16 @@ export class Game {
       fx.burst(o.x, o.y - 14, 20, { kind: 'glow', color: '#ffffff', smin: 60, smax: 260, grav: -40, add: true });
       if (profile.shards % 4 === 0) {
         profile.bonusMasks = (profile.bonusMasks || 0) + 1;
-        P.maxHp = 5 + profile.bonusMasks;
+        P.maxHp = P.calcMaxHp();
         P.hp = P.maxHp;
         this.showToast('가면이 완성되었다! 최대 체력 +1', 3.5);
       } else this.showToast(`가면 조각 (${profile.shards % 4}/4)`, 2.5);
+    } else if (o.kind === 'charm') {
+      grantCharm(o.amount);
+      const C = CHARM_BY_ID[o.amount];
+      audio.play('ability');
+      fx.burst(o.x, o.y - 14, 24, { kind: 'glow', color: C.color, smin: 60, smax: 260, grav: -40, add: true });
+      this.showToast(`부적 획득: ${C.name}`, 4, `${C.desc} · 벤치에서 장착`);
     } else {
       profile.amber += o.amount;
       audio.play('amber');
@@ -1148,7 +1424,8 @@ export class Game {
 
   // ═══════════════ 호박석 동전 ═══════════════
   _dropCoins(x, y, total) {
-    if (!total || this.mode === 'race') return;
+    if (!total || this.mode === 'race' || this.mode === 'pvp') return;
+    if (hasCharm('amberlure')) total = Math.round(total * 1.2);
     let left = total;
     let n = 0;
     while (left > 0 && n < 30) {
@@ -1166,7 +1443,7 @@ export class Game {
       c.t += dt;
       const dx = P.cx - c.x, dy = P.cy - c.y;
       const d = Math.hypot(dx, dy);
-      if (c.t > 0.45 && d < 110 && !P.busy) {
+      if (c.t > 0.45 && d < (hasCharm('amberlure') ? 330 : 110) && !P.busy) {
         c.vx += (dx / d) * 2400 * dt;
         c.vy += (dy / d) * 2400 * dt;
         c.vx *= 0.92;
@@ -1345,6 +1622,20 @@ export class Game {
     this.cam.y += (t.y - this.cam.y) * (1 - Math.exp(-dt * 5));
   }
 
+  // 발밑 그림자: 아래 땅까지 거리에 따라 옅어짐
+  _shadow(ctx, x, foot, w) {
+    const W = this.world;
+    let d = 0;
+    while (d < 140 && !W.solidAt(x, foot + d + 1) && W.get(Math.floor(x / TILE), Math.floor((foot + d + 1) / TILE)) !== 2) d += 4;
+    if (d >= 140) return;
+    const k = 1 - d / 140;
+    const gy = Math.floor((foot + d + 1) / TILE) * TILE;
+    ctx.fillStyle = `rgba(0,0,0,${0.38 * k})`;
+    ctx.beginPath();
+    ctx.ellipse(x, gy, w * 0.75 * (0.6 + 0.4 * k), 3.2 * k + 1, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   // ═══════════════ 렌더 ═══════════════
   render(dt) {
     const ctx = this.ctx;
@@ -1437,6 +1728,7 @@ export class Game {
     for (const e of this.sim.list()) {
       if (!inView(e.x, e.y, 200)) continue;
       const def = DEFS[e.kind];
+      if (!def.fly && !def.static) this._shadow(ctx, e.x + e.w / 2, e.y + e.h, e.w);
       def.draw(ctx, e, time);
       if (def.light) {
         this.light.light(ecx(e), ecy(e), def.light, 0.85);
@@ -1462,8 +1754,14 @@ export class Game {
       const ds = p.rp.drawState(time);
       ds.ghost = this.mode === 'race';
       if (s.hk) drawChain(ctx, p.rp.cx, p.rp.y + 12, s.hk[0], s.hk[1], s.hk[2], time);
+      this._shadow(ctx, p.rp.cx, p.rp.y + p.rp.h, 20);
       drawMoth(ctx, ds, time);
       drawNameTag(ctx, ds, p.name, this.mode === 'race' ? '#b8d8d4' : '#ffd58a');
+      if (this.mode === 'pvp' && !s.dn)
+        for (let i = 0; i < 5; i++) {
+          ctx.fillStyle = i < s.hp ? '#ece7da' : 'rgba(200,195,180,0.25)';
+          ctx.fillRect(p.rp.cx - 14 + i * 6, p.rp.y - 30, 4, 4);
+        }
       if (this.mode !== 'race') {
         this.light.light(p.rp.cx, p.rp.cy, 200, 0.8);
         this.light.glow(p.rp.cx, p.rp.cy - 10, 60, LIGHT_COLORS[s.lc || 0].kind, 0.2);
@@ -1508,7 +1806,30 @@ export class Game {
         }
       }
     }
-    if (P.hazardT <= 0 || P.hazardT > 0.55) drawMoth(ctx, P, time);
+    if (this.wisp) {
+      const w = this.wisp;
+      ctx.fillStyle = 'rgba(255,140,80,0.35)';
+      ctx.beginPath();
+      ctx.arc(w.x, w.y, 9 + Math.sin(time * 9) * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffe2a8';
+      ctx.beginPath();
+      ctx.arc(w.x, w.y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      this.light.light(w.x, w.y, 90, 0.6);
+      if (w.shot) {
+        ctx.strokeStyle = `rgba(255,200,120,${w.shot.t / 0.12})`;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(w.shot.x0, w.shot.y0);
+        ctx.lineTo(w.shot.x1, w.shot.y1);
+        ctx.stroke();
+      }
+    }
+    if (P.hazardT <= 0 || P.hazardT > 0.55) {
+      this._shadow(ctx, P.cx, P.y + P.h, P.w);
+      drawMoth(ctx, P, time);
+    }
     this.light.light(P.cx, P.cy - 10, P.downed ? 140 : 300, 1);
     this.light.glow(P.cx, P.cy - 10, 70, LIGHT_COLORS[P.lightC || 0].kind, 0.22);
     if (P.focusT > 0) this.light.glow(P.cx, P.cy, 50 + P.focusT * 30, 'amber', 0.6);
@@ -1563,7 +1884,9 @@ export class Game {
     let dark = (this.currentRoom ? this.currentRoom.dark : 0.4) * 0.82;
     dark = clamp(dark + this.darkBoost + (this.stageLights ? 0.2 : 0), 0, 0.95);
     this.light.drawDark(ctx, W, H, cam, z, pal.dark, dark);
+    this.bg.drawShafts(ctx, W, H, z, time, cam);
     this.bg.drawMotes(ctx, cam, W, H, z, time);
+    this.bg.drawFore(ctx, cam, W, H, z);
 
     // 화면 효과
     if (this.stageLights) {

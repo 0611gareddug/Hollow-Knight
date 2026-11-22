@@ -1,5 +1,6 @@
 // 적/투사체 시뮬레이션. 방장(또는 혼자)일 때만 권한 시뮬레이션, 참가자는 스냅샷 보간
 import { ENEMIES } from './enemies.js';
+import '../render/enemyArt.js';
 import { BOSSES } from './bosses.js';
 import { ENEMIES2 } from './enemies2.js';
 import { BOSSES2 } from './bosses2.js';

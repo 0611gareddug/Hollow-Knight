@@ -50,6 +50,10 @@ class RoomBuilder {
     return this;
   }
   shrine(ability, x, y) { this._obj('shrine', x, y, { ability, id: 'shrine_' + ability }); return this; }
+  pvpSpawn(x, y) {
+    this.w.pvpSpawns.push({ x: (this.r.x + x + 0.5) * TILE, y: (this.r.y + y + 1) * TILE });
+    return this;
+  }
   spawn(x, y) { this.w.spawn = { x: (this.r.x + x + 0.5) * TILE, y: (this.r.y + y + 1) * TILE, room: this.r.id }; return this; }
   finish(x, y, w, h) {
     this.w.finish = { x: (this.r.x + x) * TILE, y: (this.r.y + y) * TILE, w: w * TILE, h: h * TILE };
@@ -76,6 +80,7 @@ export class World {
     this.spawn = null;
     this.finish = null;
     this.seals = [];
+    this.pvpSpawns = [];
     // 음수 좌표(위쪽 세계)를 쓰는 방이 있으면 전체를 아래로 밀어 0부터 시작하게 함
     let minY = 0;
     for (const r of def.rooms) minY = Math.min(minY, r.y);

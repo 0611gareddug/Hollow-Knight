@@ -58,7 +58,7 @@ export const STORY = {
         r.solid(0, 48, 30, 4).spike(1, 47, 5);
         r.sign(4, 16, '{DN}+{J} : 발판 아래로 내려가기');
         r.lamp(3, 16);
-        r.pickup('amber', 27, 40, 'a4_amb', 30);
+        r.pickup('charm', 27, 40, 'a4_charm', 'swiftwing');
         r.e('crawler', 24, 24).e('moth', 15, 27).e('moth', 10, 39).e('crawler', 16, 36);
       },
     },
@@ -100,7 +100,7 @@ export const STORY = {
         r.brk('b2_secret', 53, 2, 2, 4, 4);
         r.solid(6, 1, 3, 3).solid(20, 1, 5, 2);
         r.lamp(4, 17).lamp(24, 17);
-        r.pickup('amber', 47, 5, 'b2_amb', 60);
+        r.pickup('charm', 47, 5, 'b2_charm', 'hardmask');
         r.e('dropper', 20, 3).e('dropper', 45, 8).e('frog', 23, 17).e('frog', 46, 17).e('vine', 54, 14, { dir: -1 });
       },
     },
@@ -149,7 +149,7 @@ export const STORY = {
       build: (r) => {
         r.solid(0, 13, 60, 3).solid(8, 1, 4, 3).solid(26, 1, 6, 2).solid(44, 1, 3, 4);
         r.lamp(3, 12).lamp(30, 12).lamp(57, 12);
-        r.pickup('amber', 28, 12, 'c2_amb', 80);
+        r.pickup('charm', 28, 12, 'c2_charm', 'longwick');
         r.e('monk', 18, 12).e('knight', 40, 12).e('moth', 30, 5).e('monk', 52, 12);
       },
     },
@@ -292,6 +292,7 @@ export const STORY = {
         r.anchor(14, 42).anchor(8, 32).anchor(15, 23).anchor(9, 14).anchor(20, 8);
         r.solid(22, 9, 7, 1);
         r.lamp(4, 52).lamp(25, 8);
+        r.pickup('charm', 23, 18, 'e3_charm', 'deepfocus');
         r.e('gale', 15, 30).e('wasp', 10, 20).e('bloom', 22, 37);
       },
     },
@@ -422,3 +423,45 @@ export const RUSH = {
   doors: [],
 };
 export const RUSH_ORDER = ['mother', 'bell', 'scarlet', 'keeper', 'smith', 'queen', 'devourer'];
+
+// ───────── PvP 아레나 ─────────
+export const PVP_ARENAS = [
+  {
+    id: 'flat', name: '평지 결투장', zone: 1,
+    rooms: [{
+      id: 'pv1', zone: 1, name: '평지 결투장', x: 0, y: 0, w: 46, h: 20, dark: 0.25,
+      build: (r) => {
+        r.solid(0, 15, 46, 5);
+        r.plat(8, 11, 6).plat(32, 11, 6).plat(19, 7, 8);
+        r.lamp(3, 14).lamp(42, 14).lamp(23, 14);
+        r.pvpSpawn(5, 14).pvpSpawn(40, 14).pvpSpawn(16, 14).pvpSpawn(29, 14);
+      },
+    }],
+  },
+  {
+    id: 'chain', name: '사슬 정원', zone: 6,
+    rooms: [{
+      id: 'pv2', zone: 6, name: '사슬 정원', x: 0, y: 0, w: 50, h: 22, dark: 0.1,
+      build: (r) => {
+        r.solid(0, 17, 10, 5).solid(40, 17, 10, 5).solid(20, 15, 10, 7);
+        r.spike(10, 20, 10).spike(30, 20, 10);
+        r.anchor(14, 8).anchor(25, 4).anchor(36, 8);
+        r.lamp(3, 16).lamp(46, 16);
+        r.pvpSpawn(4, 16).pvpSpawn(45, 16).pvpSpawn(22, 14).pvpSpawn(27, 14);
+      },
+    }],
+  },
+  {
+    id: 'spike', name: '가시 원형장', zone: 7,
+    rooms: [{
+      id: 'pv3', zone: 7, name: '가시 원형장', x: 0, y: 0, w: 44, h: 20, dark: 0.35,
+      build: (r) => {
+        r.solid(0, 15, 44, 5).spike(1, 14, 5).spike(38, 14, 5);
+        r.plat(10, 10, 6).plat(28, 10, 6).plat(19, 6, 6);
+        r.anchor(21, 2);
+        r.lamp(8, 14).lamp(35, 14);
+        r.pvpSpawn(9, 14).pvpSpawn(34, 14).pvpSpawn(15, 14).pvpSpawn(28, 14);
+      },
+    }],
+  },
+];

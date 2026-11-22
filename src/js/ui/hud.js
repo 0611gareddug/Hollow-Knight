@@ -204,6 +204,43 @@ export class HUD {
         ctx.fillText(`${i + 1}. ${names[id] || '?'}  ${fmtTime(tm)}`, W - 20 * ui, 34 * ui + i * 20 * ui);
       });
     }
+    // ─── PvP 아레나 ───
+    if (g.pvp) {
+      const V = g.pvp;
+      const names = g._pvpNames();
+      const ids = Object.keys(V.scores);
+      ctx.textAlign = 'center';
+      ctx.font = `600 ${13 * ui}px ${SANS}`;
+      ctx.fillStyle = '#b8c8c4';
+      ctx.fillText(`${g.arena.name} · 라운드 ${V.round + 1} · 3선승`, W / 2, 24 * ui);
+      const colW = 150 * ui, x0 = W / 2 - (ids.length * colW) / 2 + colW / 2;
+      ids.forEach((id, i) => {
+        const x = x0 + i * colW;
+        ctx.font = `700 ${14 * ui}px ${SANS}`;
+        ctx.fillStyle = Number(id) === g.myId ? '#ffe2a8' : '#cfe8e2';
+        ctx.fillText(names[id] || '?', x, 46 * ui);
+        for (let k = 0; k < 3; k++) {
+          ctx.fillStyle = k < (V.scores[id] || 0) ? '#ffb347' : 'rgba(200,195,180,0.25)';
+          ctx.beginPath();
+          ctx.arc(x - 14 * ui + k * 14 * ui, 58 * ui, 4.5 * ui, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+      if (V.state === 'count') {
+        const n = Math.ceil(V.t);
+        ctx.font = `700 ${100 * ui}px ${SERIF}`;
+        ctx.fillStyle = `rgba(255,226,168,${0.4 + (V.t % 1) * 0.6})`;
+        ctx.fillText(n > 0 ? String(n) : '', W / 2, H / 2 + 30 * ui);
+      }
+      if (V.msg) {
+        ctx.font = `700 ${60 * ui}px ${SERIF}`;
+        ctx.fillStyle = '#ffe2a8';
+        ctx.shadowColor = 'rgba(0,0,0,0.8)';
+        ctx.shadowBlur = 14 * ui;
+        ctx.fillText(V.msg, W / 2, H * 0.42);
+        ctx.shadowBlur = 0;
+      }
+    }
     // ─── 보스 러시 ───
     if (g.rush) {
       ctx.textAlign = 'center';

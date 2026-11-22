@@ -4,9 +4,11 @@ import { audio } from '../core/audio.js';
 import { input, ACTIONS, getKeys, setKey, resetKeys } from '../core/input.js';
 import { fmtTime, isTouchDevice } from '../core/util.js';
 import { hasWorldSave, clearWorld, loadWorld } from '../core/save.js';
-import { COURSES, RUSH_ORDER } from '../world/data.js';
+import { COURSES, RUSH_ORDER, PVP_ARENAS } from '../world/data.js';
 import { BOSSES } from '../entities/bosses.js';
 import { Net, makeCode } from '../net/net.js';
+import { CHARMS, CHARM_BY_ID, ensureCharms, usedNotches, toggleEquip, grantCharm } from '../core/charms.js';
+import { ZONES } from '../world/data.js';
 import { drawMoth } from '../render/drawPlayer.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -640,8 +642,10 @@ export class Menus {
           <button data-m="story">협동 이야기</button>
           <button data-m="race">스피드런 레이스</button>
           <button data-m="rush" ${beaten ? '' : 'disabled title="방장이 보스를 처치해야 열립니다"'}>보스 러시</button>
+          <button data-m="pvp">PvP 아레나</button>
         </div>
         <div class="courses" id="l_courses">${COURSES.map((c, i) => `<button data-c="${i}">${c.name}</button>`).join('')}</div>
+        <div class="courses" id="l_arenas">${PVP_ARENAS.map((c, i) => `<button data-ar="${i}">${c.name}</button>`).join('')}</div>
         <p class="sub" id="l_desc"></p>
         <button data-a="start" class="primary">시작</button>` : '<p class="sub" id="l_desc"></p>'}
         <button data-a="leave">나가기</button>
@@ -665,6 +669,10 @@ export class Menus {
         this.lobbyMode.mode = b.dataset.m;
         net.send({ t: 'roster', list: this.roster, lm: this.lobbyMode });
       }
+      if (b.dataset.ar != null) {
+        this.lobbyMode.arena = Number(b.dataset.ar);
+        net.send({ t: 'roster', list: this.roster, lm: this.lobbyMode });
+      }
       if (b.dataset.c != null) {
         this.lobbyMode.course = Number(b.dataset.c);
         net.send({ t: 'roster', list: this.roster, lm: this.lobbyMode });
@@ -683,12 +691,16 @@ export class Menus {
     this.root.querySelectorAll('[data-c]').forEach((b) => b.classList.toggle('on', Number(b.dataset.c) === lm.course));
     const cs = $('#l_courses', this.root);
     if (cs) cs.style.display = lm.mode === 'race' ? 'flex' : 'none';
+    const as = $('#l_arenas', this.root);
+    if (as) as.style.display = lm.mode === 'pvp' ? 'flex' : 'none';
+    this.root.querySelectorAll('[data-ar]').forEach((b) => b.classList.toggle('on', Number(b.dataset.ar) === (lm.arena || 0)));
     const d = $('#l_desc', this.root);
     if (d) {
       const desc = {
         story: '방장의 저장 진행으로 함께 탐험합니다. 쓰러지면 고치가 되고, 동료가 곁에 머물면 부활합니다.',
         race: `코스: ${COURSES[lm.course].name} — 동시에 출발해 결승선까지 경주합니다. 상대는 유령으로 보입니다.`,
         rush: '처치한 보스들과 연속으로 싸웁니다. 처치 시간이 기록됩니다.',
+        pvp: `아레나: ${PVP_ARENAS[lm.arena || 0].name} — 라운드제 개인전, 3선승. 모두 같은 능력치(체력 5, 사슬 포함, 부적 없음). 2명 이상 필요.`,
       }[lm.mode];
       d.textContent = desc;
     }
@@ -707,6 +719,14 @@ export class Menus {
     } else if (lm.mode === 'race') {
       net.send({ t: 'start', mode: 'race', roster, course: lm.course });
       this.game.startRace(net, lm.course, roster);
+    } else if (lm.mode === 'pvp') {
+      if (roster.length < 2) {
+        net.locked = false;
+        this._flash(this.root.firstChild, 'PvP는 2명 이상 필요합니다');
+        return;
+      }
+      net.send({ t: 'start', mode: 'pvp', roster, arena: lm.arena || 0 });
+      this.game.startPvp(net, lm.arena || 0, roster);
     } else {
       const order = RUSH_ORDER.filter((k) => (profile.beaten || []).includes(k));
       net.send({ t: 'start', mode: 'rush', roster, order });
@@ -719,6 +739,7 @@ export class Menus {
     if (m.mode === 'story') {
       this.game.startStory(net, m.save || null, m.roster);
     } else if (m.mode === 'race') this.game.startRace(net, m.course, m.roster);
+    else if (m.mode === 'pvp') this.game.startPvp(net, m.arena, m.roster);
     else this.game.startRush(net, m.order, m.roster);
   }
 
@@ -767,6 +788,69 @@ export class Menus {
     });
   }
 
+  // ═══════════════ 벤치 메뉴: 부적 장착 + 빠른 이동 ═══════════════
+  openBench(game, onClose) {
+    ensureCharms();
+    let tab = this._benchTab || 'charm';
+    const close = () => {
+      this.hideAll();
+      onClose();
+    };
+    this.modal = { close };
+    this._benchOpen = false;
+    const render = (msg = '') => {
+      this._benchTab = tab;
+      setTimeout(() => (this._benchOpen = true), 0);
+      const used = usedNotches();
+      const notches = Array.from({ length: profile.notches }, (_, i) => `<span class="notch ${i < used ? 'on' : ''}"></span>`).join('');
+      let body = '';
+      if (tab === 'charm') {
+        body = `
+          <div class="notches">부적 칸 ${notches} <em>${used} / ${profile.notches}</em></div>
+          <div class="charms">${CHARMS.map((c) => {
+            const own = profile.charms.includes(c.id), on = profile.equip.includes(c.id);
+            return `<button class="charm ${on ? 'on' : ''} ${own ? '' : 'lock'}" data-c="${c.id}" title="${own ? esc(c.desc) : esc(c.from)}">
+              <span class="ci" style="color:${own ? c.color : '#555'}">${own ? c.icon : '?'}</span>
+              <b>${own ? esc(c.name) : '???'}</b><small>${own ? '●'.repeat(c.cost) + ' ' + esc(c.desc) : '획득처: ' + esc(c.from)}</small></button>`;
+          }).join('')}</div>
+          <p class="sub">${esc(msg) || '부적을 눌러 장착/해제합니다. 칸이 모자라면 다른 부적을 먼저 빼세요.'}</p>`;
+      } else {
+        const list = game.benchList();
+        body = `<div class="list">${list.map(({ o, room }, i) => `<button data-w="${i}" ${game.myBench && game.myBench.x === o.x && game.myBench.y === o.y ? 'class="on"' : ''}>${esc(room.name)}<small>${esc(ZONES[room.zone].name)}</small></button>`).join('')}</div>
+          <p class="sub">가 본 벤치로 바로 이동합니다.</p>`;
+      }
+      const s = this._screen(`
+        <div class="panel bench ${this._benchOpen ? 'noanim' : ''}">
+          <h2>벤치</h2>
+          <div class="tabs"><button data-tab="charm" class="${tab === 'charm' ? 'on' : ''}">부적</button><button data-tab="warp" class="${tab === 'warp' ? 'on' : ''}">빠른 이동</button></div>
+          ${body}
+          <button data-a="close" class="primary">닫기</button>
+        </div>`, 'dim');
+      s.addEventListener('click', (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        if (b.dataset.a === 'close') return close();
+        if (b.dataset.tab) {
+          tab = b.dataset.tab;
+          audio.play('ui');
+          return render();
+        }
+        if (b.dataset.c) {
+          const r = toggleEquip(b.dataset.c);
+          if (r === 'ok') audio.play('uiOk');
+          else audio.play('ui', { pitch: 0.6 });
+          return render(r === 'full' ? '칸이 부족합니다' : r === 'locked' ? '아직 얻지 못한 부적입니다 — ' + CHARM_BY_ID[b.dataset.c].from : '');
+        }
+        if (b.dataset.w != null) {
+          const it = game.benchList()[Number(b.dataset.w)];
+          close();
+          game.warpTo(it.o);
+        }
+      });
+    };
+    render();
+  }
+
   // ═══════════════ 상점 ═══════════════
   openShop(onClose) {
     const items = () => {
@@ -774,11 +858,16 @@ export class Menus {
       return [
         { id: 'shard', name: '가면 조각', desc: '4개를 모으면 최대 체력 +1', price: [150, 300, 500, 800][shopShards], sold: shopShards >= 4 },
         { id: 'nail', name: profile.nail >= 1 ? '심지검 담금질 II' : '심지검 담금질', desc: '공격력 증가', price: [400, 900][profile.nail || 0], sold: (profile.nail || 0) >= 2 },
+        { id: 'c_swiftfocus', name: '부적: 빠른 집중', desc: '회복 시간 35% 단축', price: 300, sold: (profile.charms || []).includes('swiftfocus') },
+        { id: 'c_amberlure', name: '부적: 호박 자석', desc: '호박석 자석 + 획득량 +20%', price: 150, sold: (profile.charms || []).includes('amberlure') },
+        { id: 'notch', name: '부적 칸', desc: '부적을 끼울 칸 +1', price: [400, 800][profile.shopNotch || 0], sold: (profile.shopNotch || 0) >= 2 },
       ];
     };
+    this._shopOpen = false;
     const render = () => {
+      setTimeout(() => (this._shopOpen = true), 0);
       const s = this._screen(`
-        <div class="panel shop">
+        <div class="panel shop ${this._shopOpen ? 'noanim' : ''}">
           <h2>등잔 상인</h2>
           <p class="sub">"어둠 속에서 길을 잃었나? 호박석만 있다면 뭐든 내어주지."</p>
           <div class="amber">◆ ${profile.amber}</div>
@@ -796,7 +885,13 @@ export class Menus {
           profile.shopShards = (profile.shopShards || 0) + 1;
           profile.shards = (profile.shards || 0) + 1;
           if (profile.shards % 4 === 0) profile.bonusMasks = (profile.bonusMasks || 0) + 1;
-        } else profile.nail = (profile.nail || 0) + 1;
+        } else if (it.id === 'nail') profile.nail = (profile.nail || 0) + 1;
+        else if (it.id.startsWith('c_')) grantCharm(it.id.slice(2));
+        else if (it.id === 'notch') {
+          ensureCharms();
+          profile.shopNotch = (profile.shopNotch || 0) + 1;
+          profile.notches = Math.min(6, profile.notches + 1);
+        }
         saveProfile();
         audio.play('shard');
         render();
@@ -826,6 +921,27 @@ export class Menus {
       const a = e.target.dataset.a;
       if (a === 'again') this.game.startRace(null, this.game.race.courseIdx, null);
       else if (a === 'lobby') this.backToLobby();
+      else if (a === 'title') {
+        this.game.stop();
+        this.net = null;
+        this.showTitle();
+      }
+    });
+  }
+
+  showPvpResults(list, isHost, online) {
+    const s = this._screen(`
+      <div class="panel">
+        <h2>아레나 결과</h2>
+        <div class="results">${list.map((r, i) => `<div class="res ${r.me ? 'me' : ''}"><span>${i + 1}</span><b>${esc(r.name)}</b><em>${'●'.repeat(r.score)}${'○'.repeat(Math.max(0, 3 - r.score))}</em></div>`).join('')}</div>
+        <div class="row">
+          ${isHost ? '<button data-a="lobby" class="primary">로비로</button>' : '<p class="sub">방장이 다음을 고르는 중…</p>'}
+          <button data-a="title">타이틀로</button>
+        </div>
+      </div>`, 'dim');
+    s.addEventListener('click', (e) => {
+      const a = e.target.dataset.a;
+      if (a === 'lobby') this.backToLobby();
       else if (a === 'title') {
         this.game.stop();
         this.net = null;
