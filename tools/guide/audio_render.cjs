@@ -6,7 +6,7 @@ const OUTDIR = process.env.OUTDIR || 'guide';
   const { dur, log } = JSON.parse(fs.readFileSync(`${OUTDIR}/audio_log.json`, 'utf8'));
   // 시작 음악 보정: 인트로는 타이틀 곡, 주행 시작 시 1구역 곡
   const ev = log.slice().sort((a, b) => a[0] - b[0]);
-  if (!ev.some((e) => e[1] === 'm' && e[0] < 4.7)) ev.unshift([4.5, 'm', 'zone1']);
+  if (!ev.some((e) => e[1] === 'm' && e[0] < 3.2)) ev.unshift([3, 'm', 'zone1']);
   ev.unshift([0, 'm', 'title']);
   ev.push([dur - 6.5, 'm', 'ending']);
   ev.sort((a, b) => a[0] - b[0]);

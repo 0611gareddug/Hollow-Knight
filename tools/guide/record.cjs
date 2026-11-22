@@ -6,6 +6,7 @@ const SEED = Number(process.env.SEED || 1);
 const OUTDIR = process.env.OUTDIR || 'guide';
 const FPS = 30;
 const NOSHOT = !!process.env.NOSHOT;
+const MAXT = Number(process.env.MAXT || 0);
 (async () => {
   fs.mkdirSync(OUTDIR, { recursive: true });
   const b = await chromium.launch();
@@ -70,12 +71,12 @@ const NOSHOT = !!process.env.NOSHOT;
         ctx.fillStyle = '#9fb0ac';
         ctx.font = `500 ${24 * s}px ${SANS}`;
         ctx.fillText('설정 → 스트리머 모드: 입력 키 표시 · 스피드런 스플릿 타이머 켜짐', W / 2, H * 0.62);
-        ctx.fillText('핵심 테크는 0.3배속 슬로모션으로 보여 줍니다', W / 2, H * 0.66);
+        ctx.fillText('핵심 테크는 0.35배속 슬로모션으로 보여 줍니다', W / 2, H * 0.66);
       }
       // 테크 자막
       const c = R.caption;
       if (c) {
-        const a = Math.min(1, c.t / 0.25, (4.2 - c.t) / 0.4);
+        const a = Math.min(1, c.t / 0.25, (3.2 - c.t) / 0.4);
         ctx.globalAlpha = Math.max(0, a);
         ctx.font = `700 ${34 * s}px ${SANS}`;
         ctx.textAlign = 'center';
@@ -88,7 +89,7 @@ const NOSHOT = !!process.env.NOSHOT;
         ctx.fillRect(W / 2 - w / 2, y - 52 * s, 6 * s, 92 * s);
         ctx.font = `600 ${20 * s}px ${SANS}`;
         ctx.fillStyle = '#ffd58a';
-        ctx.fillText(R.slow > 0 ? '핵심 테크 · 0.3배속' : '핵심 테크', W / 2, y - 20 * s);
+        ctx.fillText(R.slow > 0 ? '핵심 테크 · 0.35배속' : '핵심 테크', W / 2, y - 20 * s);
         ctx.font = `700 ${34 * s}px ${SANS}`;
         ctx.fillStyle = '#ffffff';
         ctx.fillText(label, W / 2, y + 22 * s);
@@ -143,10 +144,10 @@ const NOSHOT = !!process.env.NOSHOT;
   const vdt = 1 / FPS;
   // 인트로 4.5초: 첫 화면 위에 제목 카드
   await p.evaluate(() => { window.__phase = 'intro'; window.__vt = 0; const rs = __rng.get(); __game.render(0); __rng.set(rs); });
-  for (let i = 0; i < 4.5 * FPS; i++) {
+  for (let i = 0; i < 3 * FPS; i++) {
     await p.evaluate(([i, vdt]) => {
       window.__vt = i * vdt;
-      window.__introOut = Math.max(0, Math.min(1, (window.__vt - 3.8) / 0.7));
+      window.__introOut = Math.max(0, Math.min(1, (window.__vt - 2.5) / 0.5));
       const rs = __rng.get(); __game.render(0); __rng.set(rs);
     }, [i, vdt]);
     await shot();
@@ -160,8 +161,9 @@ const NOSHOT = !!process.env.NOSHOT;
       window.__vt = base + __run.t + vdt;
       __run.frame(vdt);
       return { done: !!__game.save.bosses.keeper, deaths: __run.deaths, t: __run.t };
-    }, [vdt, 4.5]);
+    }, [vdt, 3]);
     await shot();
+    if (MAXT && st.t > MAXT) break;
     if (st.deaths) { console.log('DEATH at', st.t); if (NOSHOT) { console.log('RESULT death'); await b.close(); return; } break; }
     if (st.done && endAt == null) endAt = i + FPS * 3.2;
     if (endAt != null && i >= endAt) break;

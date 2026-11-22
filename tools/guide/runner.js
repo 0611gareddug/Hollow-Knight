@@ -25,7 +25,7 @@
   window.__run = R;
 
   // ── 효과음/이펙트를 끈 채로 시뮬레이션 ──
-  const FXK = ['add', 'burst', 'ring', 'shake', 'hitstop', 'slowmo', 'doFlash', 'grayscale'];
+  const FXK = ['add', 'burst', 'ring', 'shake', 'hitstop', 'slowmo', 'doFlash', 'grayscale', 'slash', 'text'];
   const noop = () => {};
   function quiet(fn) {
     const saved = {};
@@ -130,7 +130,15 @@
       }
       const nx = path[Math.min(path.length - 1, idx + 1)];
       const d = Math.hypot(nx[0] - (p.x + p.w / 2), nx[1] - (p.y + p.h));
-      return { score: idx * 100 - tReach * 40 - d / 6 - hitPen, idx };
+      const pl = e.plan, H = horizon;
+      let style = 0;
+      if (pl.jumpAt < H) style -= 14;
+      if (pl.djAt < H) style -= 8;
+      if (pl.turnAt < H) style -= 12;
+      if (pl.drop) style -= 6;
+      if (pl.dashAt < H) style += 8;
+      if (pl.dir === 0) style -= 10;
+      return { score: idx * 100 - tReach * 90 - d / 6 - hitPen + style, idx };
     });
   }
   function replan() {
@@ -157,7 +165,7 @@
     djump: '이단 점프로 높은 턱 넘기',
     pogo: '아래 베기 포고 — 적·가시를 밟고 튀어오르기',
   };
-  function slowmo(kind, dur = 1.1) {
+  function slowmo(kind, dur = 0.7) {
     if (R.techShown[kind] >= 1 || R.slow > 0) return;
     R.techShown[kind] = (R.techShown[kind] || 0) + 1;
     R.slow = dur;
@@ -190,7 +198,7 @@
     }
     if (pl.vy < -560 && fb.prevVy >= -560 && !pl.grounded) {
       fb.pogos++;
-      if (fb.pogos === 1) slowmo('pogo', 1.2);
+      if (fb.pogos === 1) slowmo('pogo', 0.75);
     }
     fb.prevVy = pl.vy;
     const above = pl.y + pl.h < e.y + 14 && dist < e.w / 2 + 26;
@@ -398,6 +406,9 @@
         }
       }
       score += hitBonus;
+      if (!hitBonus && pl.atk < FH) score -= 16;
+      if (pl.j < FH) score -= 5;
+      if (pl.dj < FH) score -= 4;
       if (target) {
         const te = target.e;
         const gap = Math.max(0, Math.abs(te.x + te.w / 2 + target.vx * FH - p.cx) - te.w / 2);
@@ -457,7 +468,7 @@
     // 포고 슬로모션
     if (pl.vy < -560 && fb.prevVy >= -560 && !pl.grounded) {
       fb.pogos++;
-      if (fb.pogos === 2) slowmo('pogo', 1.2);
+      if (fb.pogos === 2) slowmo('pogo', 0.75);
     }
     fb.prevVy = pl.vy;
     return h;
@@ -557,7 +568,7 @@
     for (const e of g.sim.list()) {
       if (e.room !== room || e.maxHp > 100) continue;
       const dx = ecx(e) - pl.cx, dy = ecy(e) - pl.cy;
-      if (Math.abs(dx) < 80 && Math.abs(dy) < 50 && pl.atkCD <= 0) {
+      if (Math.abs(dx) < 68 && Math.abs(dy) < 42 && pl.atkCD <= 0) {
         if (Math.sign(dx) === pl.facing || Math.abs(dx) < 20) {
           if (dy > 30 && !pl.grounded) h.down = true;
           else if (dy < -35) h.up = true;
@@ -597,12 +608,12 @@
     R.t += vdt;
     let gdt = vdt;
     if (R.slow > 0) {
-      gdt = vdt * 0.3;
+      gdt = vdt * 0.35;
       R.slow -= gdt;
     }
     if (R.caption) {
       R.caption.t += vdt;
-      if (R.caption.t > 4.2) R.caption = null;
+      if (R.caption.t > 3.2) R.caption = null;
     }
     __fx.updateScreen(gdt);
     acc += gdt * __fx.timeScale(gdt);
