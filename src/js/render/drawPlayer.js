@@ -76,45 +76,113 @@ export function drawMoth(ctx, s, time) {
     ctx.fill();
   }
 
-  // 다리
-  ctx.fillStyle = flash ? '#fff' : '#0d0f12';
+  // 다리 (관절 + 둥근 발)
+  const legC = flash ? '#fff' : '#0d0f12';
+  const leg = (x, swing, lift) => {
+    ctx.strokeStyle = legC;
+    ctx.lineWidth = 2.6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, -9);
+    ctx.lineTo(x + swing * 0.5, -4.5 - lift);
+    ctx.lineTo(x + swing, -1.2 - lift);
+    ctx.stroke();
+    ctx.fillStyle = legC;
+    ctx.beginPath();
+    ctx.ellipse(x + swing + 0.8, -1 - lift, 2.2, 1.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+  };
   if (a === 'run') {
     const p = Math.sin(s.animT * 13);
-    ctx.fillRect(-5 + p * 4, -8, 3, 8);
-    ctx.fillRect(2 - p * 4, -8, 3, 8);
+    leg(-3.5, p * 4, Math.max(0, p) * 1.5);
+    leg(3, -p * 4, Math.max(0, -p) * 1.5);
+  } else if (a === 'jump' || a === 'fall' || a === 'swing') {
+    leg(-3.5, -1.5, 2);
+    leg(3, 1.5, 1);
   } else if (a !== 'sit' && a !== 'dead') {
-    ctx.fillRect(-5, -8, 3, 8);
-    ctx.fillRect(2, -8, 3, 8);
+    leg(-3.5, 0, 0);
+    leg(3, 0, 0);
   }
+  ctx.lineCap = 'butt';
 
-  // 날개 망토 (접힌 나방 날개)
+  // 날개 망토 (접힌 나방 날개) – 속도에 따라 밑단이 휘날림
   const flap = a === 'jump' || a === 'fall' || a === 'swing' ? Math.sin(time * 18) * 0.12 : a === 'run' ? Math.sin(s.animT * 13) * 0.05 : 0;
+  const vxs = Math.max(-1, Math.min(1, ((s.vx || 0) * (s.facing || 1)) / 400));
+  const vys = Math.max(-1, Math.min(1, (s.vy || 0) / 700));
+  const trail = vxs * 5 + (a === 'dash' ? 4 : 0); // 뒤로 끌림
+  const lift = a === 'fall' ? vys * 4 : a === 'jump' ? -2 : 0; // 낙하 때 밑단이 들림
+  const breath = a === 'idle' ? Math.sin(time * 2.6) * 0.6 : 0;
+  const hem = (i) => Math.sin(time * 7 + i * 1.7 + (s.x || 0) * 0.05) * (0.6 + Math.abs(vxs) * 1.2);
+  // 안쪽(뒷날개) 안감
   ctx.fillStyle = cloakD;
   ctx.beginPath();
   ctx.moveTo(-3, -30);
-  ctx.bezierCurveTo(-16 - flap * 40, -26, -17 - flap * 40, -10, -12, -4);
-  ctx.lineTo(-8, -7);
-  ctx.lineTo(-5, -3);
+  ctx.bezierCurveTo(-16 - flap * 40 - trail * 0.6, -26, -18 - flap * 40 - trail, -10, -13 - trail, -4 - lift + hem(0));
+  ctx.lineTo(-9 - trail * 0.7, -7 - lift * 0.6 + hem(1));
+  ctx.lineTo(-5 - trail * 0.4, -3 - lift * 0.4 + hem(2));
   ctx.lineTo(-1, -6);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = cloakC;
+  if (!flash) {
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(-4, -27);
+    ctx.quadraticCurveTo(-11 - trail * 0.5, -18, -10 - trail * 0.8, -7);
+    ctx.stroke();
+  }
+  // 바깥 망토 (그라데이션 음영)
+  let outer = cloakC;
+  if (!flash && !cl.grad) {
+    const g = ctx.createLinearGradient(-6, -31, 8, -3);
+    g.addColorStop(0, shade(cl.c, 1.25));
+    g.addColorStop(0.55, cl.c);
+    g.addColorStop(1, cl.d);
+    outer = g;
+  }
+  ctx.fillStyle = outer;
   ctx.beginPath();
-  ctx.moveTo(-2, -31);
-  ctx.bezierCurveTo(12 + flap * 30, -29, 14 + flap * 30, -12, 10, -5);
-  ctx.lineTo(6, -8);
-  ctx.lineTo(3, -4);
-  ctx.lineTo(-1, -7);
-  ctx.lineTo(-4, -3);
-  ctx.lineTo(-8, -7);
-  ctx.bezierCurveTo(-11, -14, -9, -27, -2, -31);
+  ctx.moveTo(-2, -31 - breath);
+  ctx.bezierCurveTo(12 + flap * 30, -29 - breath, 14 + flap * 30 - trail * 0.3, -12, 10 - trail * 0.4, -5 - lift * 0.3 + hem(3));
+  ctx.lineTo(6 - trail * 0.5, -8 - lift * 0.4 + hem(4));
+  ctx.lineTo(3 - trail * 0.6, -4 - lift * 0.5 + hem(5));
+  ctx.lineTo(-1 - trail * 0.7, -7 - lift * 0.6 + hem(6));
+  ctx.lineTo(-4 - trail * 0.8, -3 - lift * 0.7 + hem(7));
+  ctx.lineTo(-8 - trail, -7 - lift * 0.8 + hem(8));
+  ctx.bezierCurveTo(-11 - trail * 0.6, -14, -9, -27, -2, -31 - breath);
   ctx.closePath();
   ctx.fill();
   if (!flash) {
-    // 날개 무늬 (눈알 무늬)
-    ctx.fillStyle = 'rgba(255,220,160,0.18)';
+    // 주름
+    ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+    ctx.lineWidth = 0.9;
     ctx.beginPath();
-    ctx.arc(4, -17, 3.2, 0, Math.PI * 2);
+    ctx.moveTo(1, -27);
+    ctx.quadraticCurveTo(-1 - trail * 0.3, -17, -2 - trail * 0.6, -7);
+    ctx.moveTo(6, -25);
+    ctx.quadraticCurveTo(6 - trail * 0.2, -16, 4 - trail * 0.5, -6);
+    ctx.stroke();
+    // 앞쪽 테두리 빛 (위에서 오는 빛)
+    ctx.strokeStyle = 'rgba(255,240,215,0.22)';
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(-1, -30.5 - breath);
+    ctx.bezierCurveTo(11 + flap * 30, -28.5, 13 + flap * 30, -14, 11, -9);
+    ctx.stroke();
+    // 날개 가장자리 장식 점선
+    ctx.fillStyle = 'rgba(255,230,190,0.16)';
+    for (let i = 0; i < 4; i++) ctx.fillRect(7 - i * 3 - trail * 0.2 * i, -10 + (i % 2) * 2, 1.4, 1.4);
+  }
+  if (!flash) {
+    // 날개 무늬 (눈알 무늬: 고리 + 눈동자)
+    ctx.strokeStyle = 'rgba(255,220,160,0.28)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(4 - trail * 0.2, -17, 3.4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,220,160,0.22)';
+    ctx.beginPath();
+    ctx.arc(4 - trail * 0.2, -17, 1.6, 0, Math.PI * 2);
     ctx.fill();
     if (cl.stars) {
       ctx.fillStyle = 'rgba(230,235,255,0.8)';
@@ -155,7 +223,21 @@ export function drawMoth(ctx, s, time) {
   const hy = -37;
   const maskC = flash ? '#ffffff' : s.mask === 3 ? '#e9d2c8' : s.mask === 7 ? '#efe4c8' : '#ebe6d9';
   drawAntenna(ctx, s, hy, flash, time);
-  ctx.fillStyle = maskC;
+  // 가면 아래 목 그림자
+  if (!flash) {
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(0.5, hy + 8, 7, 2.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  if (flash) ctx.fillStyle = maskC;
+  else {
+    const mg = ctx.createRadialGradient(-3, hy - 4, 1, 0, hy, 11);
+    mg.addColorStop(0, '#ffffff');
+    mg.addColorStop(0.55, maskC);
+    mg.addColorStop(1, shade(maskC, 0.82));
+    ctx.fillStyle = mg;
+  }
   ctx.beginPath();
   if (s.mask === 1) {
     ctx.moveTo(-8.5, hy - 4);
@@ -262,6 +344,20 @@ export function drawMoth(ctx, s, time) {
     else ctx.ellipse(ex + 0.6, hy + 0.5, 2.3, 3.8, ex < 0 ? 0.25 : -0.25, 0, Math.PI * 2);
     ctx.fill();
   }
+  // 눈동자 반짝임
+  if (!flash && !blink) {
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillRect(-3.6, hy - 2.2, 1.1, 1.1);
+    ctx.fillRect(3.9, hy - 2.2, 1.1, 1.1);
+  }
+  // 가면 윗부분 반사광
+  if (!flash) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, hy, 7.4, -2.5, -1.7);
+    ctx.stroke();
+  }
   if (s.mask === 6 && !flash && !blink) {
     ctx.fillStyle = '#ffcf70';
     ctx.fillRect(3.6, hy, 1.6, 1.6);
@@ -282,8 +378,14 @@ function drawAntenna(ctx, s, hy, flash, time) {
   for (const side of [-1, 1]) {
     ctx.beginPath();
     if (kind === 0) {
+      ctx.lineWidth = 2.4;
       ctx.moveTo(side * 3, hy - 7);
-      ctx.quadraticCurveTo(side * 6, hy - 18, side * 13 + sway, hy - 21);
+      ctx.quadraticCurveTo(side * 4.5, hy - 12, side * 6.5, hy - 15);
+      ctx.stroke();
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(side * 6.5, hy - 15);
+      ctx.quadraticCurveTo(side * 8.5, hy - 19, side * 13 + sway, hy - 21);
       ctx.stroke();
       ctx.lineWidth = 1;
       for (let k = 0; k < 4; k++) {
@@ -397,8 +499,21 @@ function drawSword(ctx, s, flash) {
     else if (s.atkDir === 'down') base = Math.PI / 2;
     ctx.rotate(base - 1.1 + k * 2.2);
     swordShape(ctx, kind, 26, flash);
+    // 손
+    ctx.fillStyle = flash ? '#fff' : '#101215';
+    ctx.beginPath();
+    ctx.arc(1, 0, 2.6, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
+}
+
+// 색 밝기 조절 (#rrggbb)
+function shade(hex, k) {
+  if (!hex || hex[0] !== '#' || hex.length < 7) return hex;
+  const n = parseInt(hex.slice(1, 7), 16);
+  const c = (v) => Math.max(0, Math.min(255, Math.round(v * k)));
+  return `rgb(${c(n >> 16)},${c((n >> 8) & 255)},${c(n & 255)})`;
 }
 
 export function slashRGB(i) {

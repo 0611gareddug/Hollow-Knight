@@ -54,7 +54,7 @@ export class RemotePlayer {
       x: this.x, y: this.y, w: this.w, h: this.h,
       facing: s.f || 1, anim: s.a || 'idle', animT: (s.at || 0) + (s.a === 'run' ? time : 0),
       atkDir: s.ad, atkT: s.ak || 0, invul: s.inv ? 1 : 0, flash: 0,
-      cloak: s.cl || 0, mask: s.mk || 0, antenna: s.an || 0, acc: s.ac || 0, sword: s.sw || 0, slashC: s.sc || 0, lightC: s.lc || 0, vx: s.vx || 0, revive: s.rv || 0, landT: 0,
+      cloak: s.cl || 0, mask: s.mk || 0, antenna: s.an || 0, acc: s.ac || 0, sword: s.sw || 0, slashC: s.sc || 0, lightC: s.lc || 0, vx: s.vx || 0, vy: s.vy || 0, revive: s.rv || 0, landT: 0,
     };
   }
 }
