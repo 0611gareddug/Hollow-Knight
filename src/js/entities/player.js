@@ -97,6 +97,7 @@ export class Player {
     this.hookBuf = 0;
     this.slamT = 0;
     this.slamBuf = 0;
+    this.slamCD = 0; // 내려찍기 재사용 대기
   }
 
   get cx() { return this.x + this.w / 2; }
@@ -193,6 +194,7 @@ export class Player {
     }
 
     // ── 내려찍기 (공중에서 아래 + 대시) ──
+    if (this.slamCD > 0) this.slamCD -= dt;
     if (this.slamT > 0) {
       this.slamT += dt;
       this.vx = 0;
@@ -203,13 +205,17 @@ export class Player {
       const r = W.moveBody(this, 0, this.vy * dt);
       if (r.hitY > 0 || W.grounded(this)) {
         this.slamT = 0;
+        this.slamCD = 1.0;
         this.vy = -260;
         this.grounded = false;
         if (g.onSlam) g.onSlam(this);
-      } else if (this.slamT > 1.5) this.slamT = 0;
+      } else if (this.slamT > 1.5) {
+        this.slamT = 0;
+        this.slamCD = 1.0;
+      }
       return;
     }
-    if (control && ab.slam && !this.grounded && inp.held.down && inp.pressed.dash && this.dashT <= 0) {
+    if (control && ab.slam && this.slamCD <= 0 && !this.grounded && inp.held.down && inp.pressed.dash && this.dashT <= 0) {
       this.slamT = 0.0001;
       this.dashT = 0;
       this.jumping = false;
