@@ -11,7 +11,7 @@ export const PH = {
   G: 2750,
   MAX_FALL: 980,
   JUMP_V: 590,
-  JUMP_HOLD: 0.21,
+  JUMP_HOLD: 0.24,
   JUMP_MIN: 0.045,
   DJ_V: 560,
   DJ_HOLD: 0.14,

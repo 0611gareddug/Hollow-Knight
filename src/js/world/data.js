@@ -127,7 +127,7 @@ export const STORY = {
       id: 'b5', zone: 2, name: '가라앉은 종탑', x: 422, y: 50, w: 40, h: 28, dark: 0.5, bossRoom: true,
       build: (r) => {
         r.solid(0, 24, 40, 4).solid(30, 8, 10, 16);
-        r.plat(3, 18, 6).plat(13, 15, 6).plat(22, 18, 6);
+        r.plat(3, 20, 6).plat(13, 17, 6).plat(22, 20, 6);
         r.boss('bell', 15, 23, 6, [[1, 19, 1, 5], [39, 3, 1, 5]]);
         r.shrine('wall', 9, 23);
         r.sign(20, 23, '벽에 붙어 {J} : 벽 점프로 오르기', 'wall');

@@ -258,7 +258,12 @@ export const BOSSES = {
           e.vx = 0;
           if (e.t > 0.55 + e.ex.n * 0.95 && e.ex.n < 2) {
             e.ex.n++;
-            S.proj('sring', cx(e), e.y + 26, 0, 0, { life: 2.2, gap: rand(-Math.PI, Math.PI) });
+            // 종소리: 바닥을 타고 퍼지는 낮은 충격파(점프로 넘김) + 두 번째엔 천장 낙하물 예고
+            for (const d of [-1, 1]) S.proj('wave', cx(e) + d * 30, e.y + e.h, d * 300, 0, { life: 1.3 });
+            if (e.ex.n === 2) {
+              const p2 = S.near(e);
+              if (p2) for (const dx of [-90, 90]) S.proj('rockwarn', p2.cx + dx, e.y + e.h, 0, 0, { life: 1.2 });
+            }
             S.ev('sfx', { s: 'bell', x: cx(e), y: e.y });
           }
           if (e.t > 2.4) go(e, 'idle');

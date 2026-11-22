@@ -192,3 +192,40 @@ if (which === 'story') {
     console.log(`${c.name}: nodes=${r.seen.size} ${fin || near ? '✓ 결승 도달' : '✗ 결승 도달 못함'}`);
   }
 }
+
+// ── 발판 전수 검사: 각 구역 도달 시점의 능력으로 닿지 않는 윗면 찾기 ──
+if (which === 'surfaces') {
+  const w0 = new World(STORY);
+  const tile = (room, x, y) => { const r = w0.roomById[room]; return { x: (r.x + x + 0.5) * T, y: (r.y + y + 1) * T }; };
+  const stages = [
+    { ab: { dash: false, wall: false, djump: false }, start: w0.spawn, zones: [1] },
+    { ab: { dash: true, wall: false, djump: false }, start: tile('a6', 22, 17), zones: [2] },
+    { ab: { dash: true, wall: true, djump: false }, start: tile('b5', 15, 23), zones: [3] },
+    { ab: { dash: true, wall: true, djump: true }, start: tile('b2', 40, 17), zones: [4], broken: ['b2_secret'] },
+    { ab: { dash: true, wall: true, djump: true, hook: true }, start: tile('d2', 33, 18), zones: [5, 6, 7] },
+  ];
+  for (const st of stages) {
+    const res = explore(STORY, st.ab, st.start, { maxNodes: 16000, rollouts: 44, broken: st.broken });
+    const nodes = [...res.seen.values()];
+    const W = res.w;
+    const solid = (i, j) => { const t = W.get(i, j); return t === 1 || t === 5 || t === 6; };
+    for (const r of W.rooms) {
+      if (!st.zones.includes(r.zone)) continue;
+      const segs = [];
+      for (let j = r.y + 2; j < r.y + r.h; j++) {
+        let run = null;
+        for (let i = r.x + 1; i < r.x + r.w - 1; i++) {
+          const t = W.get(i, j);
+          const top = (t === 1 || t === 2) && !solid(i, j - 1) && W.get(i, j - 1) !== 2 && !solid(i, j - 2) && W.get(i, j - 1) !== 3;
+          if (top) { if (!run) run = { i0: i, i1: i, j }; else run.i1 = i; }
+          else if (run) { segs.push(run); run = null; }
+        }
+        if (run) segs.push(run);
+      }
+      for (const sg of segs) {
+        const hit = nodes.some((n) => n.x > sg.i0 * T - 12 && n.x < (sg.i1 + 1) * T + 12 && Math.abs(n.y - sg.j * T) < 10);
+        if (!hit) console.log(`  ✗ ${r.id} 윗면 x=${sg.i0 - r.x}~${sg.i1 - r.x} y=${sg.j - r.y} (${W.get(sg.i0, sg.j) === 2 ? '발판' : '바닥/턱'})`);
+      }
+    }
+  }
+}
