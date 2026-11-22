@@ -5,6 +5,7 @@ import { protect } from './core/protect.js';
 import { Menus } from './ui/menus.js';
 import { TouchUI } from './ui/touch.js';
 import { Game } from './game.js';
+import { fx } from './render/fx.js';
 
 /* global __PROD__ */
 if (typeof __PROD__ !== 'undefined' && __PROD__) protect();
@@ -19,6 +20,7 @@ menus.game = game;
 if (typeof __PROD__ !== 'undefined' && !__PROD__) {
   window.__game = game;
   window.__input = input;
+  window.__fx = fx;
 }
 
 // 첫 입력에서 오디오 활성화 (브라우저 정책)
