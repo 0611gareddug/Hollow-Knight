@@ -248,6 +248,7 @@ export class Menus {
         <h3>스트리머 모드</h3>
         <div class="row"><button data-a="streamer" class="${settings.streamer ? 'on' : ''}">입력 키 표시: ${settings.streamer ? '켜짐' : '꺼짐'}</button></div>
         <div class="row spos">${[['tl', '왼쪽 위'], ['tr', '오른쪽 위'], ['bl', '왼쪽 아래'], ['br', '오른쪽 아래']].map(([k, n]) => `<button data-sp="${k}" class="${settings.streamerPos === k ? 'on' : ''}">${n}</button>`).join('')}</div>
+        <div class="row"><button data-a="timer" class="${settings.timer ? 'on' : ''}">스피드런 스플릿 타이머: ${settings.timer ? '켜짐' : '꺼짐'}</button></div>
         <h3>모바일 버튼</h3>
         ${sl('s_tsize', '버튼 크기', settings.touchSize, 0.7, 1.5)}
         ${sl('s_talpha', '버튼 투명도', settings.touchAlpha, 0.2, 1)}
@@ -278,7 +279,11 @@ export class Menus {
         audio.play('uiOk');
       } else if (a === 'edit') this.editTouch(() => this.showSettings(back, inGame));
       else if (a === 'keys') this.showKeys(() => this.showSettings(back, inGame));
-      else if (a === 'streamer') {
+      else if (a === 'timer') {
+        settings.timer = !settings.timer;
+        saveSettings();
+        this.showSettings(back, inGame);
+      } else if (a === 'streamer') {
         settings.streamer = !settings.streamer;
         saveSettings();
         this.showSettings(back, inGame);

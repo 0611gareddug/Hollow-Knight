@@ -3,6 +3,7 @@ import { profile, settings } from '../core/settings.js';
 import { input, getKeys } from '../core/input.js';
 import { keyName } from './menus.js';
 import { fmtTime, clamp, TILE } from '../core/util.js';
+import { drawSplits } from '../core/splits.js';
 import { DEFS } from '../entities/sim.js';
 import { PALETTES } from '../render/palette.js';
 import { ZONES } from '../world/data.js';
@@ -306,6 +307,7 @@ export class HUD {
       }
       ctx.globalAlpha = 1;
     }
+    this.timerH = settings.timer && g.mode === 'story' && !g.mapOpen ? drawSplits(ctx, g, W, ui, SANS) : 0;
     if (settings.streamer && !g.mapOpen) this.drawKeys(ctx, W, H, ui);
     if (g.mapOpen) this.drawMap(ctx, W, H, ui);
     ctx.restore();
@@ -327,7 +329,7 @@ export class HUD {
     const m = 16 * ui;
     // 터치 버튼/보스 체력바와 겹치지 않게
     let x0 = pos.endsWith('l') ? m : W - bw - m;
-    let y0 = pos.startsWith('t') ? (pos === 'tl' ? 120 * ui : 56 * ui) : H - bh - m - (g.sim.list().some((e) => e.maxHp > 100) ? 50 * ui : 0);
+    let y0 = pos.startsWith('t') ? (pos === 'tl' ? 120 * ui : Math.max(56 * ui, this.timerH || 0)) : H - bh - m - (g.sim.list().some((e) => e.maxHp > 100) ? 50 * ui : 0);
     if (pos === 'tr' && (g.race || g.rush)) y0 = 84 * ui;
     ctx.fillStyle = 'rgba(5,8,10,0.55)';
     ctx.fillRect(x0 - 8 * ui, y0 - 8 * ui, bw + 16 * ui, bh + 14 * ui);

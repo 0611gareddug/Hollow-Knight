@@ -1,5 +1,7 @@
 // 진입점
 import { audio } from './core/audio.js';
+import { DEFS } from './entities/sim.js';
+import { PROJ } from './entities/projectiles.js';
 import { input } from './core/input.js';
 import { protect } from './core/protect.js';
 import { Menus } from './ui/menus.js';
@@ -21,6 +23,9 @@ if (typeof __PROD__ !== 'undefined' && !__PROD__) {
   window.__game = game;
   window.__input = input;
   window.__fx = fx;
+  window.__audio = audio;
+  window.__DEFS = DEFS;
+  window.__PROJ = PROJ;
 }
 
 // 첫 입력에서 오디오 활성화 (브라우저 정책)

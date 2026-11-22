@@ -15,6 +15,7 @@ const defSettings = {
   showFps: false,
   streamer: false, // 스트리머 모드: 입력 키 표시
   streamerPos: 'br', // br | bl | tr | tl
+  timer: false, // 스피드런 스플릿 타이머 (스토리)
 };
 
 const defProfile = {

@@ -22,6 +22,7 @@ import { floodTiles } from './entities/bosses.js';
 import { cx as ecx, cy as ecy } from './entities/common.js';
 import { HUD } from './ui/hud.js';
 import { installGimmicks } from './gimmicks.js';
+import { hitSplit } from './core/splits.js';
 import { drawTorch, drawLever, drawNpc, drawHouse } from './render/drawNpc.js';
 import { hasCharm, grantCharm, BOSS_CHARM, CHARM_BY_ID, ensureCharms, charmState } from './core/charms.js';
 
@@ -466,7 +467,7 @@ export class Game {
     }
     if (this.race && this.race.state === 'run' && this.race.fin == null) this.race.time += dt;
     if (this.rush && !this.rush.done && this.rush.idx >= 0) this.rush.time += dt;
-    if (this.mode === 'story' && this.isHost) this.save.playTime += dt;
+    if (this.mode === 'story' && !this.ended) this.save.playTime += dt;
 
     W.tick(dt, this.time);
     if (canMove) P.update(dt, input, this);
@@ -597,6 +598,7 @@ export class Game {
       this.save.explored[room.id] = true;
       if (room.zone !== this.lastZone) {
         this.lastZone = room.zone;
+        this._split('zone:' + room.zone);
         const z = ZONES[room.zone];
         this.zoneTitle = { name: z.name, sub: z.sub, t: 0 };
         if (!this._bossRunning()) audio.music(z.music);
@@ -990,6 +992,7 @@ export class Game {
         this._dropCoins(d.x, d.y, d.amber || 100);
         if (this.floods[d.room]) this._flood(d.room, 0);
         if (this.mode === 'story') {
+          this._split('boss:' + d.kind);
           this.save.bosses[d.kind] = true;
           if (room.boss) this.world.setGates(room.boss.gates, false);
           if (!profile.beaten) profile.beaten = [];
@@ -1073,6 +1076,7 @@ export class Game {
         break;
       }
       case 'ability': {
+        this._split('ab:' + d.ab);
         this.abilities[d.ab] = true;
         this.save.abilities[d.ab] = true;
         if (this.isHost && this.mode === 'story') saveWorld(this.save);
@@ -1613,6 +1617,15 @@ export class Game {
       input.clearAll();
       if (this.currentRoom) audio.music(ZONES[this.currentRoom.zone].music);
     });
+  }
+
+  // 스플릿 기록 + 짧은 효과
+  _split(k) {
+    if (this.mode !== 'story' || !this.save) return;
+    const r = hitSplit(this.save, k);
+    if (!r || !settings.timer) return;
+    this.splitFlash = { t: 0, gold: r.gold, delta: r.delta };
+    if (r.end) audio.play('victory', { vol: 0.6 });
   }
 
   showToast(text, t = 2.5, sub = '') {
