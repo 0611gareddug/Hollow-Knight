@@ -16,7 +16,10 @@ menus.touch = touch;
 touch.show(false);
 const game = new Game(canvas, menus, touch);
 menus.game = game;
-if (typeof __PROD__ !== 'undefined' && !__PROD__) window.__game = game;
+if (typeof __PROD__ !== 'undefined' && !__PROD__) {
+  window.__game = game;
+  window.__input = input;
+}
 
 // 첫 입력에서 오디오 활성화 (브라우저 정책)
 const unlock = () => audio.unlock();

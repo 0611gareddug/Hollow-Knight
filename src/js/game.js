@@ -339,6 +339,7 @@ export class Game {
   // ═══════════════ 메인 루프 ═══════════════
   frame(ts) {
     requestAnimationFrame((t) => this.frame(t));
+    if (this.manual) return; // 트레일러 촬영: 프레임을 외부에서 직접 진행
     const now = ts / 1000;
     let dt = this.last ? now - this.last : 1 / 60;
     this.last = now;
@@ -364,6 +365,22 @@ export class Game {
       }
       if (n === 0 && ts2 === 0) this._frozenTick(dt);
       this._netTick(dt);
+    }
+    this.render(dt);
+  }
+
+  // 개발용: 게임 시간을 dt만큼 정확히 진행하고 한 프레임 그림 (트레일러 촬영)
+  manualFrame(dt) {
+    input.update();
+    fx.updateScreen(dt);
+    const ts2 = fx.timeScale(dt);
+    this.acc += dt * ts2;
+    let first = true;
+    while (this.acc >= STEP) {
+      if (!first) input.clearAll();
+      this.step(STEP);
+      this.acc -= STEP;
+      first = false;
     }
     this.render(dt);
   }
@@ -1707,6 +1724,7 @@ export class Game {
     for (const o of this.world.objects) {
       if (o.type !== 'sign' || !inView(o.x, o.y)) continue;
       if (o.req && !this.abilities[o.req]) continue;
+      if (typeof __PROD__ !== 'undefined' && !__PROD__ && window.__noHud) continue;
       const d = Math.hypot(o.x - P.cx, o.y - (P.y + P.h));
       const a = clamp(1 - (d - 90) / 160, 0, 1);
       if (a <= 0) continue;
@@ -1931,7 +1949,8 @@ export class Game {
       ctx.fillStyle = `rgba(0,0,0,${fade})`;
       ctx.fillRect(0, 0, W, H);
     }
-    this.hud.draw(ctx, W, H, this.dpr, dt);
+    if (!(typeof __PROD__ !== 'undefined' && !__PROD__ && window.__noHud)) this.hud.draw(ctx, W, H, this.dpr, dt);
+    if (typeof __PROD__ !== 'undefined' && !__PROD__ && window.__overlay) window.__overlay(ctx, W, H);
   }
 }
 
