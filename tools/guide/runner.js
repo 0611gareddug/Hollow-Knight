@@ -146,11 +146,15 @@
     let best = null;
     const th0 = threatsNow();
     const th = th0.en.length || th0.pr.length ? th0 : null;
-    const tryE = (e) => {
+    const curDir = R.ex ? R.ex.dir : 0;
+    const tryE = (e, cont) => {
       const r = evalExec(cloneExec(e), 1.2, th);
-      if (!best || r.score > best.score) best = { score: r.score, e, idx: r.idx };
+      let sc = r.score;
+      if (cont) sc += 28; // 사람처럼: 하던 동작을 쉽게 바꾸지 않음
+      else if (curDir && e.dir && e.dir !== curDir) sc -= 24; // 급반전 감점
+      if (!best || sc > best.score) best = { score: sc, e, idx: r.idx };
     };
-    if (R.ex) tryE(R.ex);
+    if (R.ex) tryE(R.ex, true);
     for (let i = 0; i < 44; i++) tryE(mkExec(randPlan(ab)));
     if (best.score < -1e8 && R.ex) best = { e: R.ex, score: best.score };
     R.ex = best.e;
@@ -274,7 +278,13 @@
       const D = __DEFS[e.kind];
       let boxes = [];
       try { boxes = D.danger ? D.danger(e) : []; } catch (err) { boxes = []; }
-      en.push({ e, boxes, vx: e.vx || 0, vy: D.fly ? e.vy || 0 : Math.min(0, e.vy || 0), boss: !!D.boss });
+      // 땅 적도 떨어지는 중이면 바닥까지 낙하 예측
+      let floorDy = 0;
+      if (!D.fly && (e.vy || 0) > 0) {
+        const Wd = g.world;
+        while (floorDy < 600 && !Wd.solidAt(e.x + e.w / 2, e.y + e.h + floorDy + 2)) floorDy += 8;
+      }
+      en.push({ e, boxes, vx: e.vx || 0, vy: e.vy || 0, fly: !!D.fly, floorDy, boss: !!D.boss });
     }
     const pr = [];
     for (const q of g.sim.plist()) {
@@ -295,7 +305,8 @@
         if (t > rem && t < rem + 0.32) { const dx = f * 760 * Math.min(t - rem, 0.26); return [{ x: clampX(bx.x + dx, bx.w) - (f < 0 ? 40 : 0), y: bx.y, w: bx.w + 40, h: bx.h }]; }
       } else if (st === 'swind') {
         const rem = 0.31 - e.t;
-        if (t > rem - 0.05 && t < rem + 0.16) return [{ x: f > 0 ? e.x + e.w - 4 : e.x - 70, y: e.y + e.h / 2 - 31, w: 74, h: 50 }];
+        const ex = e.x + (o.vx || 0) * Math.max(0, Math.min(t, rem)) + f * 140 * Math.max(0, t - rem) * 0.5;
+        if (t > rem - 0.05 && t < rem + 0.16) return [{ x: f > 0 ? ex + e.w - 8 : ex - 74, y: e.y + e.h / 2 - 33, w: 82, h: 54 }];
       } else if (st === 'phang') {
         const rem = 0.3 - e.t;
         if (t > rem) return [{ x: e.x - 14, y: e.y, w: e.w + 28, h: 400 }];
@@ -308,7 +319,8 @@
   }
   function hitByThreat(th, box, t) {
     for (const o of th.en) {
-      for (const b of o.boxes) if (ov(box, { x: b.x + o.vx * t, y: b.y + o.vy * t, w: b.w, h: b.h })) return true;
+      const dy = o.fly ? o.vy * t : o.vy > 0 ? Math.min(o.vy * t, o.floorDy) : o.vy * t;
+      for (const b of o.boxes) if (ov(box, { x: b.x + o.vx * t, y: b.y + dy, w: b.w, h: b.h })) return true;
       const a = anticipate(o, t);
       if (a) for (const b of a) if (ov(box, b)) return true;
     }
@@ -332,6 +344,33 @@
         }
         continue;
       }
+      if (q.type === 'lantern') {
+        // 포물선 착지 지점 예측 → 폭발(반경 60) + 바닥 불
+        if (q._land === undefined || q._lt !== q.t) {
+          let x = q.x, y = q.y, vx = q.vx || 0, vy = q.vy || 0, tt = 0;
+          const Wd = g.world;
+          q._land = null;
+          q._lt = q.t;
+          for (; tt < 2.5; tt += 1 / 60) {
+            vy += 1400 / 60; x += vx / 60; y += vy / 60;
+            if (Wd.solidAt(x, y + 8) || Wd.solidAt(x + Math.sign(vx) * 8, y)) { q._land = { x, y, t: tt }; break; }
+          }
+        }
+        const Ld = q._land;
+        if (Ld) {
+          if (t < Ld.t) {
+            const f = { x: q.x + (q.vx || 0) * t, y: q.y + (q.vy || 0) * t + 700 * t * t };
+            const nx = Math.max(box.x, Math.min(f.x, box.x + box.w)), ny = Math.max(box.y, Math.min(f.y, box.y + box.h));
+            if ((nx - f.x) ** 2 + (ny - f.y) ** 2 < 14 * 14) return true;
+          }
+          if (t > Ld.t - 0.04 && t < Ld.t + 0.26) {
+            const nx = Math.max(box.x, Math.min(Ld.x, box.x + box.w)), ny = Math.max(box.y, Math.min(Ld.y, box.y + box.h));
+            if ((nx - Ld.x) ** 2 + (ny - Ld.y) ** 2 < 66 * 66) return true;
+          }
+          if (t > Ld.t + 0.1 && ov(box, { x: Ld.x - 14, y: Ld.y - 10, w: 28, h: 40 })) return true;
+        }
+        continue;
+      }
       if (q.type === 'rockwarn') {
         // 남은 시간 뒤 천장에서 바위가 떨어짐: 그 무렵 그림자 위에 있으면 위험
         const rem = q.life - q.t;
@@ -347,11 +386,16 @@
   }
   function fightPlans(dir, ab) {
     const L = [];
-    const mk = (o) => L.push(Object.assign({ mv: 0, j: 99, jh: 0.3, d: 99, dd: 0, atk: 99, ad: 'side', dj: 99, face: dir }, o));
+    const mk = (o) => L.push(Object.assign({ mv: 0, mvT: 99, j: 99, jh: 0.3, d: 99, dd: 0, atk: 99, ad: 'side', dj: 99, face: dir }, o));
     mk({});
     for (const m of [dir, -dir]) {
       mk({ mv: m });
       mk({ mv: m, atk: 0.02 });
+      // 조금 다가가서 멈추고 베기 / 조금 물러서기 (사람처럼 거리 조절)
+      for (const mvT of [0.1, 0.2, 0.32]) {
+        mk({ mv: m, mvT });
+        if (m === dir) mk({ mv: m, mvT, atk: Math.max(0.02, mvT - 0.04) });
+      }
       for (const j of [0, 0.06, 0.12, 0.2]) mk({ mv: m, j, jh: 0.3 });
       mk({ mv: m, j: 0, jh: 0.12 });
       mk({ mv: m, j: 0, jh: 0.3, atk: 0.3, ad: 'down' });
@@ -367,7 +411,7 @@
   }
   function planKeys(pl, t, p) {
     const h = {};
-    let mv = pl.mv;
+    let mv = t < pl.mvT ? pl.mv : 0;
     if (mv === 0 && t < 0.03 && p.facing !== pl.face) mv = pl.face; // 공격 방향 맞추기
     if (mv > 0) h.right = true; else if (mv < 0) h.left = true;
     h.jump = (t >= pl.j && t < pl.j + pl.jh) || (t >= pl.dj && t < pl.dj + 0.2);
@@ -407,7 +451,7 @@
       }
       score += hitBonus;
       if (!hitBonus && pl.atk < FH) score -= 16;
-      if (pl.j < FH) score -= 5;
+      if (pl.j < FH) score -= 12;
       if (pl.dj < FH) score -= 4;
       if (target) {
         const te = target.e;
@@ -421,6 +465,9 @@
           if (dd < 30 && Math.abs(b.y + b.h / 2 - p.cy) < b.h / 2 + 40) score -= (30 - dd) * 2;
         }
       }
+      for (const o of th.en) if (o.e.kind === 'keeper' && o.e.st === 'lwind' && Math.abs(p.cx - P().cx) < 110) score -= 160;
+      // 착지 예정 등불 근처에 머무르지 않기
+      for (const q of th.pr) if (q.type === 'lantern' && q._land && Math.abs(p.cx - q._land.x) < 80) score -= 250;
       // 반쪽 바닥 화염: 예고 중이면 반대편으로 미리 피하기
       for (const q of th.pr) {
         if (q.type === 'halfline' && q.ex && q.t < q.ex.warn + 0.35 && p.cx > q.ex.l - 10 && p.cx < q.ex.r + 10) score -= 1500 * (1 - Math.max(0, q.ex.warn - q.t) / 1.6);
@@ -451,16 +498,24 @@
         const c = Object.assign({}, FS.pl);
         for (const k of ['j', 'd', 'atk', 'dj']) c[k] = c[k] - FS.t;
         if (c.j < 0 && c.j + c.jh > 0) { c.jh = c.j + c.jh; c.j = 0; }
+        c.cont = true;
         cands.push(c);
       }
+      const prevMv = FS.pl ? FS.pl.mv : 0;
       for (const c of cands) {
         if (c.j < 0 && c.j > -50) c.j = 99;
-        const s = evalFight(c, th, tg, wantFar) + Math.random() * 2;
+        let s = evalFight(c, th, tg, wantFar) + Math.random() * 2;
+        if (s > -5000) {
+          if (c.cont) s += c.mv ? 30 : 8;
+          else if (prevMv && c.mv && c.mv !== prevMv) s -= 22;
+          if (!c.mv && !(c.atk < FH)) s -= 14; // 가만히 서 있기만 하는 건 감점
+          else if (!c.mv) s -= 4;
+        }
         if (!best || s > best.s) best = { s, c };
       }
       FS.pl = best.c;
       FS.t = 0;
-      FS.re = 0.05;
+      FS.re = 0.1;
       R.fightScore = best.s;
     }
     const h = planKeys(FS.pl, FS.t, pl);
@@ -586,9 +641,16 @@
     for (const e of g.sim.list()) {
       if (e.room !== room) continue;
       const d = Math.hypot(ecx(e) - pl.cx, ecy(e) - pl.cy);
-      if (d < (e.maxHp > 100 ? 300 : 220)) { R.healing = 0; return null; }
+      // 보스가 쉬는 중(빈틈)이면 조금 더 가까워도 회복
+      const calm = e.maxHp > 100 && /rest|phase|roar|stun/.test(e.st);
+      const need = e.maxHp > 100 ? (calm ? 170 : 300) : 220;
+      if (d < need) { R.healing = 0; return null; }
     }
-    for (const q of g.sim.plist()) if (Math.hypot(q.x - pl.cx, q.y - pl.cy) < 260) return null;
+    for (const q of g.sim.plist()) if (q.type !== 'fire' && Math.hypot(q.x - pl.cx, q.y - pl.cy) < 220) return null;
+    // 회복 중에 맞을 위험 예측: 지금 자리에 0.9초 서 있을 때 판정에 걸리면 포기
+    const th = threatsNow();
+    const box = { x: pl.x + 3, y: pl.y + 3, w: pl.w - 6, h: pl.h - 4 };
+    for (let t = 0; t < 0.9; t += 0.05) if (hitByThreat(th, box, t)) { R.healing = 0; return null; }
     R.healing = 1;
     return { heal: true };
   }
