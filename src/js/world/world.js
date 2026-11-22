@@ -1,6 +1,6 @@
 // 월드: 방 정의를 전역 타일맵으로 조립하고 충돌 질의를 제공
 import { TILE } from '../core/util.js';
-import { T_EMPTY, T_SOLID, T_PLAT, T_SPIKE, T_LIQUID, T_BREAK, T_GATE, isSolidT } from './tiles.js';
+import { T_EMPTY, T_SOLID, T_PLAT, T_SPIKE, T_LIQUID, T_BREAK, T_GATE, T_CRUMB, isSolidT } from './tiles.js';
 
 class RoomBuilder {
   constructor(world, def) {
@@ -19,9 +19,9 @@ class RoomBuilder {
   plat(x, y, w) { return this._rect(x, y, w, 1, T_PLAT); }
   spike(x, y, w) { return this._rect(x, y, w, 1, T_SPIKE); }
   liquid(x, y, w, h = 1) { return this._rect(x, y, w, h, T_LIQUID); }
-  brk(id, x, y, w, h, hp = 3) {
+  brk(id, x, y, w, h, hp = 3, slamOnly = false) {
     this._rect(x, y, w, h, T_BREAK);
-    this.w.breakables.push({ id, room: this.r.id, x: this.r.x + x, y: this.r.y + y, w, h, hp, maxHp: hp });
+    this.w.breakables.push({ id, room: this.r.id, x: this.r.x + x, y: this.r.y + y, w, h, hp, maxHp: hp, slamOnly });
     return this;
   }
   _obj(type, x, y, extra = {}) {
@@ -59,8 +59,50 @@ class RoomBuilder {
     this.w.finish = { x: (this.r.x + x) * TILE, y: (this.r.y + y) * TILE, w: w * TILE, h: h * TILE };
     return this;
   }
-  boss(kind, x, y, trigger, gates) {
+  // ── 3장 기믹 ──
+  // 움직이는 발판: (x,y)에서 (x+dx,y+dy)까지 왕복 (타일 단위, period 초)
+  mover(x, y, w, dx, dy, period = 4, phase = 0) {
+    const ax = (this.r.x + x) * TILE, ay = (this.r.y + y) * TILE;
+    this.w.movers.push({ ax, ay, bx: ax + dx * TILE, by: ay + dy * TILE, w: w * TILE, period, phase, x: ax, y: ay, px: ax, py: ay, dx: 0, dy: 0, room: this.r.id });
+    return this;
+  }
+  // 무너지는 얼음 발판
+  crumble(x, y, w) {
+    for (let i = 0; i < w; i++) this._set(x + i, y, T_CRUMB);
+    this.w.crumbles.push({ x: this.r.x + x, y: this.r.y + y, w, st: 'idle', t: 0 });
+    return this;
+  }
+  // 바람(위로 띄움) / 물살(옆으로 밂) 영역: 힘은 px/s²
+  field(x, y, w, h, fx, fy, kind = 'wind') {
+    this.w.fields.push({ x: (this.r.x + x) * TILE, y: (this.r.y + y) * TILE, w: w * TILE, h: h * TILE, fx, fy, kind, room: this.r.id });
+    return this;
+  }
+  // 횃불/레버: 같은 group을 모두 켜면 group 문이 열림
+  torch(x, y, group, kind = 'torch') {
+    this._obj(kind, x, y, { id: this.r.id + '_' + kind + x + '_' + y, group });
+    return this;
+  }
+  lgate(x, y, w, h, group) {
+    for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) this._set(i, j, T_GATE);
+    this.w.lgates.push({ x: this.r.x + x, y: this.r.y + y, w, h, group });
+    return this;
+  }
+  // 추격 구간: 방에 들어와 trigger x를 넘으면 왼쪽에서 눈사태가 따라옴
+  chase(trigger, speed, endX) {
+    this.w.chases.push({ room: this.r.id, trigger: (this.r.x + trigger) * TILE, start: this.r.px - 200, speed, end: (this.r.x + endX) * TILE });
+    return this;
+  }
+  npc(x, y, id, spot) {
+    this._obj('npc', x, y, { id, spot });
+    return this;
+  }
+  house(x, y, npc) {
+    this._obj('house', x, y, { npc });
+    return this;
+  }
+  boss(kind, x, y, trigger, gates, fromRight = false) {
     this.r.boss = {
+      fromRight,
       kind,
       x: (this.r.x + x + 0.5) * TILE,
       y: (this.r.y + y + 1) * TILE,
@@ -81,6 +123,11 @@ export class World {
     this.finish = null;
     this.seals = [];
     this.pvpSpawns = [];
+    this.movers = [];
+    this.crumbles = [];
+    this.fields = [];
+    this.lgates = [];
+    this.chases = [];
     // 음수 좌표(위쪽 세계)를 쓰는 방이 있으면 전체를 아래로 밀어 0부터 시작하게 함
     let minY = 0;
     for (const r of def.rooms) minY = Math.min(minY, r.y);
@@ -234,8 +281,76 @@ export class World {
     return res;
   }
 
+  // ── 동적 기믹 갱신 (움직이는 발판, 무너지는 발판) ──
+  tick(dt, time) {
+    for (const m of this.movers) {
+      const k = (1 - Math.cos(((time / m.period + m.phase) % 1) * Math.PI * 2)) / 2;
+      m.px = m.x;
+      m.py = m.y;
+      m.x = m.ax + (m.bx - m.ax) * k;
+      m.y = m.ay + (m.by - m.ay) * k;
+      m.dx = m.x - m.px;
+      m.dy = m.y - m.py;
+    }
+    for (const c of this.crumbles) {
+      if (c.st === 'shake') {
+        c.t += dt;
+        if (c.t > 0.55) {
+          c.st = 'gone';
+          c.t = 0;
+          for (let i = 0; i < c.w; i++) this.set(c.x + i, c.y, T_EMPTY);
+          this.crumbleBroke = (this.crumbleBroke || 0) + 1;
+        }
+      } else if (c.st === 'gone') {
+        c.t += dt;
+        if (c.t > 3) {
+          c.st = 'idle';
+          for (let i = 0; i < c.w; i++) this.set(c.x + i, c.y, T_CRUMB);
+        }
+      }
+    }
+  }
+  // 발밑의 무너지는 발판을 흔들기 시작
+  stepOn(b) {
+    const ty = Math.floor((b.y + b.h + 2) / TILE);
+    const x0 = Math.floor((b.x + 1) / TILE), x1 = Math.floor((b.x + b.w - 1) / TILE);
+    for (const c of this.crumbles)
+      if (c.st === 'idle' && c.y === ty && x1 >= c.x && x0 < c.x + c.w) {
+        c.st = 'shake';
+        c.t = 0;
+      }
+  }
+  moverUnder(b) {
+    const foot = b.y + b.h;
+    for (const m of this.movers) if (b.x + b.w > m.x + 2 && b.x < m.x + m.w - 2 && Math.abs(foot - m.y) < 3) return m;
+    return null;
+  }
+  // 발이 이번 이동으로 움직이는 발판 윗면을 지났으면 그 위에 세움
+  landMover(b, oldFoot) {
+    const foot = b.y + b.h;
+    for (const m of this.movers) {
+      if (b.x + b.w <= m.x + 2 || b.x >= m.x + m.w - 2) continue;
+      if (oldFoot <= m.py + 3 && foot >= m.y - 0.5) {
+        b.y = m.y - b.h - 0.01;
+        return m;
+      }
+    }
+    return null;
+  }
+  fieldForce(b) {
+    let fx = 0, fy = 0, hit = false;
+    for (const f of this.fields)
+      if (b.x < f.x + f.w && b.x + b.w > f.x && b.y < f.y + f.h && b.y + b.h > f.y) {
+        fx += f.fx;
+        fy += f.fy;
+        hit = true;
+      }
+    return hit ? { fx, fy } : null;
+  }
+
   // 발 아래가 땅인지 (발판 포함)
   grounded(b) {
+    if (this.movers.length && this.moverUnder(b)) return true;
     const y = b.y + b.h + 1;
     const ty = Math.floor(y / TILE);
     const x0 = Math.floor((b.x + 1) / TILE), x1 = Math.floor((b.x + b.w - 1) / TILE);

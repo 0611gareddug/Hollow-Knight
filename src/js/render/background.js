@@ -104,6 +104,51 @@ function cloud(g, x, y, s) {
   g.fill();
 }
 
+function pine(g, x, base, h, w) {
+  g.beginPath();
+  g.moveTo(x, base - h);
+  const tiers = 5;
+  for (let i = 1; i <= tiers; i++) {
+    const t = i / tiers;
+    g.lineTo(x + (w / 2) * t, base - h + h * t * 0.92);
+    if (i < tiers) g.lineTo(x + (w / 2) * t * 0.55, base - h + h * t * 0.92);
+  }
+  for (let i = tiers; i >= 1; i--) {
+    const t = i / tiers;
+    if (i < tiers) g.lineTo(x - (w / 2) * t * 0.55, base - h + h * t * 0.92);
+    g.lineTo(x - (w / 2) * t, base - h + h * t * 0.92);
+  }
+  g.closePath();
+  g.fill();
+  g.fillRect(x - w * 0.05, base - h * 0.1, w * 0.1, h * 0.1);
+}
+
+function mountain(g, r, x, base, w, h) {
+  g.beginPath();
+  g.moveTo(x - w / 2, base);
+  const n = 7;
+  for (let i = 1; i < n; i++) {
+    const t = i / n;
+    const peak = 1 - Math.abs(t - 0.5) * 2;
+    g.lineTo(x - w / 2 + w * t, base - h * peak * (0.75 + r() * 0.3));
+  }
+  g.lineTo(x + w / 2, base);
+  g.closePath();
+  g.fill();
+}
+
+function crystal(g, x, base, h, w, up) {
+  const d = up ? -1 : 1;
+  g.beginPath();
+  g.moveTo(x - w / 2, base);
+  g.lineTo(x - w / 2, base + d * h * 0.8);
+  g.lineTo(x, base + d * h);
+  g.lineTo(x + w / 2, base + d * h * 0.8);
+  g.lineTo(x + w / 2, base);
+  g.closePath();
+  g.fill();
+}
+
 function makeLayer(zone, depth, seed) {
   const c = document.createElement('canvas');
   c.width = c.height = S;
@@ -193,6 +238,35 @@ function makeLayer(zone, depth, seed) {
         } else {
           cloud(gg, it.x, it.y, 80 + it.c * 60);
         }
+      } else if (zone === 8) {
+        if (depth === 0) {
+          mountain(gg, rr, it.x, S, 320 + it.a * 260, 260 + it.b * 220);
+        } else if (depth === 1) {
+          for (let k = 0; k < 3; k++) pine(gg, it.x + k * 34, S - it.b * 120, 150 + it.a * 140 - k * 30, 60 + it.c * 30);
+        } else {
+          pine(gg, it.x, S, 220 + it.a * 160, 100 + it.b * 50);
+          spire(gg, rr, it.x + 140, 0, 60, 70 + it.c * 90, false); // 고드름
+        }
+      } else if (zone === 9) {
+        if (depth === 0) {
+          crystal(gg, it.x, S, 300 + it.a * 260, 50 + it.b * 50, true);
+          crystal(gg, it.x + 60, 0, 120 + it.c * 160, 30 + it.a * 30, false);
+        } else if (depth === 1) {
+          crystal(gg, it.x, S, 160 + it.b * 200, 34 + it.a * 30, true);
+          crystal(gg, it.x + 26, S, 100 + it.c * 120, 22, true);
+          gg.fillRect(0, S - 30 - it.b * 10, S, 4); // 얼음 수면
+        } else {
+          crystal(gg, it.x, 0, 90 + it.b * 120, 70 + it.a * 40, false);
+        }
+      } else if (zone === 10) {
+        if (depth === 0) {
+          mountain(gg, rr, it.x, S, 420 + it.a * 260, 420 + it.b * 260);
+        } else if (depth === 1) {
+          cloud(gg, it.x, it.y, 140 + it.a * 120);
+          mountain(gg, rr, it.x + 120, S, 260, 200 + it.c * 160);
+        } else {
+          spire(gg, rr, it.x, S, 140 + it.a * 60, 120 + it.b * 100, true);
+        }
       } else if (zone === 7) {
         if (depth === 0) {
           arch(gg, it.x, 200 + it.b * 200, 160 + it.a * 80, 600, 26);
@@ -243,7 +317,7 @@ function makeLayer(zone, depth, seed) {
     for (let i = 0; i < 6; i++) {
       const x = r() * S, y = r() * S;
       const gr = g.createRadialGradient(x, y, 0, x, y, 26);
-      const lc = zone === 6 ? '255,255,240' : zone === 7 ? '255,120,70' : '255,190,110';
+      const lc = zone === 6 || zone === 10 ? '255,255,240' : zone === 7 ? '255,120,70' : zone === 9 ? '170,240,255' : '255,190,110';
       gr.addColorStop(0, `rgba(${lc},0.55)`);
       gr.addColorStop(1, `rgba(${lc},0)`);
       g.fillStyle = gr;
@@ -349,8 +423,8 @@ export class Background {
   // 위에서 비스듬히 내려오는 빛줄기 (화면 공간, 가산)
   drawShafts(ctx, W, H, zoom, time, cam) {
     const z = this.zone;
-    if (z === 7 || z === 4) return;
-    const col = z === 6 ? '255,250,230' : z === 2 ? '150,240,230' : z === 3 ? '200,170,255' : z === 5 ? '255,200,140' : '210,230,220';
+    if (z === 7 || z === 4 || z === 10) return;
+    const col = z === 6 ? '255,250,230' : z === 2 || z === 9 ? '150,240,230' : z === 3 ? '200,170,255' : z === 5 ? '255,200,140' : z === 8 ? '210,230,255' : '210,230,220';
     const strength = z === 6 ? 0.09 : 0.055;
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < 4; i++) {
@@ -391,6 +465,22 @@ export class Background {
   drawMotes(ctx, cam, W, H, zoom, time) {
     const pal = PALETTES[this.zone];
     const [r, g, b] = pal.fog;
+    if (this.zone >= 8) {
+      // 눈: 아래로 비스듬히 내림 (눈보라 산정은 더 거세게)
+      const storm = this.zone === 10 ? 1 : 0;
+      const wind = storm ? 160 : 40;
+      ctx.fillStyle = 'rgba(240,248,255,0.8)';
+      for (const m of this.motes) {
+        const px = (((m.x * W - cam.x * zoom * m.z * 0.6 + time * wind * m.z + Math.sin(time * 0.8 + m.ph) * 16) % W) + W) % W;
+        const py = (((m.y * H - cam.y * zoom * m.z * 0.6 + time * (50 + storm * 70) * m.z) % H) + H) % H;
+        const s = m.s * zoom * (0.8 + m.z);
+        ctx.globalAlpha = 0.35 + 0.5 * m.z;
+        if (storm) ctx.fillRect(px, py, s * 3, s * 0.8);
+        else ctx.fillRect(px, py, s, s);
+      }
+      ctx.globalAlpha = 1;
+      return;
+    }
     for (const m of this.motes) {
       const px = (((m.x * W - cam.x * zoom * m.z * 0.6 + Math.sin(time * 0.4 + m.ph) * 20) % W) + W) % W;
       const py = (((m.y * H - cam.y * zoom * m.z * 0.6 - time * 12 * m.z) % H) + H) % H;

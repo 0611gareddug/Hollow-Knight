@@ -851,6 +851,107 @@ export class Menus {
     render();
   }
 
+  // ═══════════════ NPC 대화 ═══════════════
+  // lines: 문자열 배열 (한 줄씩 타자기 효과) · choices: [{label, sub, disabled, fn}] (마지막 줄 뒤에 표시)
+  showDialog(npc, lines, choices, onClose) {
+    this.closeDialog(true);
+    const el = document.createElement('div');
+    el.className = 'dialog';
+    el.innerHTML = `<div class="dlg-name" style="--c:${npc.color || '#e8dcc0'}">${npc.name}<small>${npc.title || ''}</small></div><div class="dlg-text"></div><div class="dlg-choices"></div><div class="dlg-next">▼</div>`;
+    document.body.appendChild(el);
+    const tx = el.querySelector('.dlg-text'), ch = el.querySelector('.dlg-choices'), nx = el.querySelector('.dlg-next');
+    let li = 0, ci = 0, full = '', typing = null, done = false;
+    const showLine = () => {
+      full = lines[li] || '';
+      ci = 0;
+      tx.textContent = '';
+      nx.style.visibility = 'hidden';
+      clearInterval(typing);
+      typing = setInterval(() => {
+        ci += 1;
+        tx.textContent = full.slice(0, ci);
+        if (ci % 2 === 0) audio.play('ui', { pitch: 1.6 + Math.random() * 0.4, vol: 0.18 });
+        if (ci >= full.length) finishLine();
+      }, 28);
+    };
+    const finishLine = () => {
+      clearInterval(typing);
+      typing = null;
+      tx.textContent = full;
+      if (li >= lines.length - 1 && choices && choices.length) {
+        ch.innerHTML = choices.map((c, i) => `<button data-c="${i}" ${c.disabled ? 'disabled' : ''}>${c.label}${c.sub ? `<small>${c.sub}</small>` : ''}</button>`).join('');
+        nx.style.visibility = 'hidden';
+      } else nx.style.visibility = 'visible';
+    };
+    const advance = () => {
+      if (done) return;
+      if (typing) return finishLine();
+      if (li >= lines.length - 1) {
+        if (choices && choices.length) return;
+        return close();
+      }
+      li++;
+      audio.play('ui', { pitch: 1.1 });
+      showLine();
+    };
+    const close = () => {
+      if (done) return;
+      done = true;
+      clearInterval(typing);
+      window.removeEventListener('keydown', onKey, true);
+      el.classList.add('out');
+      setTimeout(() => el.remove(), 180);
+      this._dlg = null;
+      if (onClose) onClose();
+    };
+    const onKey = (e) => {
+      if (e.repeat) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.code === 'Escape') return close();
+      const btns = ch.querySelectorAll('button:not([disabled])');
+      if (btns.length && /^Digit[1-9]$/.test(e.code)) {
+        const b = ch.querySelector(`button[data-c="${Number(e.code.slice(5)) - 1}"]`);
+        if (b && !b.disabled) b.click();
+        return;
+      }
+      if (btns.length && (e.code === 'Enter' || e.code === 'Space')) return btns[0].click();
+      advance();
+    };
+    el.addEventListener('pointerdown', (e) => {
+      const b = e.target.closest('button');
+      if (b) return;
+      e.preventDefault();
+      advance();
+    });
+    ch.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b || b.disabled) return;
+      const c = choices[Number(b.dataset.c)];
+      audio.play('uiOk');
+      const r = c.fn ? c.fn() : null;
+      if (r && r.lines) {
+        // 기능 결과로 이어지는 대사
+        lines = r.lines;
+        choices = r.choices || null;
+        li = 0;
+        ch.innerHTML = '';
+        showLine();
+      } else close();
+    });
+    setTimeout(() => window.addEventListener('keydown', onKey, true), 120);
+    this._dlg = { close };
+    showLine();
+  }
+  closeDialog(silent) {
+    if (this._dlg) {
+      const d = this._dlg;
+      this._dlg = null;
+      if (!silent) d.close();
+      else d.close();
+    }
+  }
+
   // ═══════════════ 상점 ═══════════════
   openShop(onClose) {
     const items = () => {
@@ -890,7 +991,7 @@ export class Menus {
         else if (it.id === 'notch') {
           ensureCharms();
           profile.shopNotch = (profile.shopNotch || 0) + 1;
-          profile.notches = Math.min(6, profile.notches + 1);
+          profile.notches = Math.min(7, profile.notches + 1);
         }
         saveProfile();
         audio.play('shard');
@@ -975,17 +1076,24 @@ export class Menus {
   }
 
   showEnding(playTime, ch, onContinue) {
-    const lines = ch === 2
+    const lines = ch === 3
+      ? ['눈보라가 흩어진 산꼭대기에서,', '얼어붙었던 마지막 불씨가 녹아내렸다.', '변경의 밤에도, 이제 등불이 꺼지지 않는다.']
+      : ch === 2
       ? ['재를 삼킨 자의 배 속에서,', '삼켜졌던 등불들이 하나둘 빠져나왔다.', '왕국의 하늘에 처음으로 불빛이 가득 찼다.']
       : ['마지막 등불지기가 쓰러지고,', '꺼져가던 불씨가 다시 숨을 쉬었다.', '가라앉은 왕국에, 아주 작은 빛이 돌아왔다.'];
+    const subText = ch === 3
+      ? '3장 완료 · 얼어붙은 변경이 깨어났습니다. 숨겨진 보스와 남은 주민을 찾아보세요.'
+      : ch === 2
+      ? '용광로 동쪽의 봉인이 풀렸습니다 — <b>3장: 얼어붙은 변경</b>이 시작됩니다.'
+      : '제단의 봉인이 풀렸습니다 — 오른쪽 벽을 타고 위로 오르면 <b>2장: 되살아난 불의 상층</b>이 시작됩니다.';
     const s = this._screen(`
       <div class="ending">
         <p class="l1">${lines[0]}</p>
         <p class="l2">${lines[1]}</p>
         <p class="l3">${lines[2]}</p>
         <h1>LANTERNFALL</h1>
-        <p class="sub">${ch === 2 ? '2장 완료 · ' : ''}플레이 시간 ${fmtTime(playTime)}</p>
-        <p class="sub">${ch === 2 ? '새 꾸미기가 열렸습니다. 보스 러시에서 일곱 보스에게 도전해 보세요.' : '제단의 봉인이 풀렸습니다 — 오른쪽 벽을 타고 위로 오르면 <b>2장: 되살아난 불의 상층</b>이 시작됩니다.'}</p>
+        <p class="sub">${ch >= 2 ? ch + '장 완료 · ' : ''}플레이 시간 ${fmtTime(playTime)}</p>
+        <p class="sub">${subText}</p>
         <div class="row"><button data-a="cont" class="primary">계속 탐험하기</button><button data-a="title">타이틀로</button></div>
       </div>`, 'ending-screen');
     s.addEventListener('click', (e) => {

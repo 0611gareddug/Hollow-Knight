@@ -63,6 +63,12 @@ export const CLOAKS = [
   { name: '흰 날개', c: '#d9dde2', d: '#9aa3ab', req: 'boss:queen' },
   { name: '재의 왕', c: '#2e2624', d: '#140f0e', req: 'boss:devourer', embers: 1 },
   { name: '오로라', c: '#2f7a6e', d: '#3b2f6e', req: 'race:all', grad: 1 },
+  { name: '눈뿔 순백', c: '#e4ecf2', d: '#9fb2c2', req: 'boss:stag' },
+  { name: '서리 여제', c: '#8fc8e8', d: '#3e6e8e', req: 'boss:empress' },
+  { name: '눈보라', c: '#b8bccc', d: '#3c3e52', req: 'boss:blizzard', grad: 1 },
+  { name: '그림자 장막', c: '#2a1e3a', d: '#120a1c', req: 'boss:shademoth', stars: 1 },
+  { name: '쉼터의 등불', c: '#c88a3a', d: '#6a4018', req: 'village', embers: 1 },
+  { name: '음유시인의 보라', c: '#7a5aa0', d: '#3e2a58', req: 'hyeon' },
 ];
 export const MASKS = [
   { name: '둥근 가면' },
@@ -104,6 +110,8 @@ export const SLASH_COLORS = [
   { name: '보라', rgb: '200,150,255' },
   { name: '금빛', rgb: '255,220,120', req: 'boss:keeper' },
   { name: '하늘', rgb: '150,210,255', req: 'boss:queen' },
+  { name: '서리', rgb: '200,240,255', req: 'boss:empress' },
+  { name: '그림자', rgb: '190,140,255', req: 'boss:shademoth' },
 ];
 export const LIGHT_COLORS = [
   { name: '호박', kind: 'amber', css: '#ffb347' },
@@ -111,12 +119,15 @@ export const LIGHT_COLORS = [
   { name: '보라', kind: 'violet', css: '#b48bff' },
   { name: '흰빛', kind: 'white', css: '#dfeeff' },
   { name: '진홍', kind: 'red', css: '#ff5a64' },
+  { name: '서리빛', kind: 'sky', css: '#a8d8ff', req: 'boss:blizzard' },
 ];
 export const REQ_TEXT = {
   'boss:mother': '심지의 어미 처치', 'boss:bell': '잠긴 종지기 처치', 'boss:keeper': '마지막 등불지기 처치',
   'boss:scarlet': '주홍 광대 처치', 'boss:smith': '톱니 대장장이 처치', 'boss:queen': '흰 날개 여왕 처치',
   'boss:devourer': '재를 삼킨 자 처치 (2장 클리어)', 'race:all': '레이스 3코스 모두 완주', rush: '보스 러시 완주',
   mask3: '숨겨진 무대의 제단',
+  'boss:stag': '눈뿔 사슴 처치', 'boss:empress': '서리 여제 처치', 'boss:blizzard': '눈보라 군주 처치 (3장 클리어)',
+  'boss:shademoth': '숨겨진 보스 그림자 나방 처치', village: '마을 주민 6명 모두 구출', hyeon: '음유시인 현의 연주 듣기',
 };
 export function isUnlocked(item) {
   const r = item && item.req;
@@ -125,6 +136,8 @@ export function isUnlocked(item) {
   if (r === 'race:all') return ['ash', 'water', 'climb'].every((id) => profile.raceBest && profile.raceBest[id]);
   if (r === 'rush') return !!profile.rushBest;
   if (r === 'mask3') return (profile.unlockedMasks || []).includes(3);
+  if (r === 'village') return !!profile.villageAll;
+  if (r === 'hyeon') return !!(profile.npcGift && profile.npcGift.hyeon);
   return false;
 }
 // 저장된 선택이 잠겨 있으면 기본값으로

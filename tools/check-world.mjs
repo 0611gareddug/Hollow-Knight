@@ -5,6 +5,8 @@ import { ENEMIES } from '../src/js/entities/enemies.js';
 import { BOSSES } from '../src/js/entities/bosses.js';
 import { ENEMIES2 } from '../src/js/entities/enemies2.js';
 import { BOSSES2 } from '../src/js/entities/bosses2.js';
+import { ENEMIES3 } from '../src/js/entities/enemies3.js';
+import { BOSSES3 } from '../src/js/entities/bosses3.js';
 
 const T = 32;
 let errors = 0;
@@ -13,7 +15,8 @@ const err = (m) => { console.log('  ✗ ' + m); errors++; };
 function checkWorld(name, def) {
   console.log(`[${name}]`);
   const w = new World(def);
-  const defs = Object.assign({}, ENEMIES, BOSSES, ENEMIES2, BOSSES2);
+  w.setGates(w.lgates, false); // 퍼즐 문은 열린 것으로 보고 연결성 검사
+  const defs = Object.assign({}, ENEMIES, BOSSES, ENEMIES2, BOSSES2, ENEMIES3, BOSSES3);
   // 겹치는 방
   for (let i = 0; i < w.rooms.length; i++)
     for (let j = i + 1; j < w.rooms.length; j++) {

@@ -37,6 +37,7 @@ export class TerrainRenderer {
     const band2 = new Path2D(); // 더 넓고 흐린 층
     const roots = new Path2D(); // 천장에서 늘어진 뿌리/덩굴 (선)
     const pebbles = new Path2D(); // 바닥 위 조약돌/풀덩이 (실루엣)
+    const snow = new Path2D(); // 3장: 쌓인 눈 / 고드름
     const flowers = []; // 하늘 정원 꽃
     const glows = []; // 빛나는 장식 {x,y,r,c,ph,kind}
     let hasSolid = false;
@@ -92,6 +93,15 @@ export class TerrainRenderer {
             if (zn === 1 && rnd() < 0.08) glows.push({ x: x + rnd() * TILE, y: y - 1, r: 1.4, c: '255,170,80', ph: rnd() * 6, kind: 'dot' });
             if (zn === 3 && rnd() < 0.1) glows.push({ x: x + 6 + rnd() * (TILE - 12), y: y, r: 4 + rnd() * 4, c: '190,140,255', ph: rnd() * 6, kind: 'crystal' });
             if (zn === 6 && rnd() < 0.3) flowers.push({ x: x + rnd() * TILE, y: y - 1, c: rnd() < 0.5 ? '#f4f0ff' : '#ffc6d9', h: 4 + rnd() * 6 });
+            if (zn >= 8) {
+              // 쌓인 눈: 둥근 둔덕
+              snow.moveTo(x - 0.5, y + 2);
+              const h1 = 3 + rnd() * 3, h2 = 3 + rnd() * 3;
+              snow.bezierCurveTo(x + 6, y - h1, x + TILE * 0.5, y - h2 - 1, x + TILE * 0.55, y - h2);
+              snow.bezierCurveTo(x + TILE * 0.7, y - h2, x + TILE - 4, y - h1, x + TILE + 0.5, y + 2);
+              snow.closePath();
+              if (zn === 9 && rnd() < 0.1) glows.push({ x: x + 6 + rnd() * (TILE - 12), y: y - 2, r: 3 + rnd() * 3, c: '170,240,255', ph: rnd() * 6, kind: 'crystal' });
+            }
             if (zn === 7 && rnd() < 0.12) glows.push({ x: x + rnd() * TILE, y: y + 4 + rnd() * 12, r: 2, c: '255,110,50', ph: rnd() * 6, kind: 'crack' });
             if (rnd() < 0.5) {
               const gx = x + rnd() * TILE;
@@ -132,7 +142,15 @@ export class TerrainRenderer {
             rimSide.rect(x, y + TILE - 1.5, TILE, 1.5);
             // 늘어진 뿌리/덩굴 (구역마다 길이 다름)
             const zn2 = zoneAt(i, j + 1);
-            if (rnd() < (zn2 === 2 || zn2 === 6 ? 0.32 : zn2 === 5 ? 0.05 : 0.18)) {
+            if (zn2 >= 8 && rnd() < 0.4) {
+              // 고드름
+              const gx = x + 3 + rnd() * (TILE - 6), h = 8 + rnd() * 20;
+              snow.moveTo(gx - 3, y + TILE);
+              snow.lineTo(gx, y + TILE + h);
+              snow.lineTo(gx + 3, y + TILE);
+              snow.closePath();
+            }
+            if (zn2 < 8 && rnd() < (zn2 === 2 || zn2 === 6 ? 0.32 : zn2 === 5 ? 0.05 : 0.18)) {
               const rx = x + 4 + rnd() * (TILE - 8);
               const len = 14 + rnd() * (zn2 === 2 ? 70 : 40);
               const sway = (rnd() - 0.5) * 16;
@@ -220,7 +238,7 @@ export class TerrainRenderer {
         }
       }
     }
-    return { solid, rim, rimSide, crack, plat, platRim, spikes, spikeTips, liquids, hasSolid, band1, band2, roots, pebbles, flowers, glows };
+    return { solid, rim, rimSide, crack, plat, platRim, spikes, spikeTips, liquids, hasSolid, band1, band2, roots, pebbles, flowers, glows, snow };
   }
 
   draw(ctx, view, pal, time) {
@@ -287,6 +305,8 @@ export class TerrainRenderer {
     for (const c of list) if (c.hasSolid) ctx.stroke(c.roots);
     ctx.fillStyle = pal.solid;
     for (const c of list) if (c.hasSolid) ctx.fill(c.pebbles);
+    ctx.fillStyle = 'rgba(232,242,252,0.92)';
+    for (const c of list) if (c.hasSolid && c.snow) ctx.fill(c.snow);
     for (const c of list)
       for (const f of c.flowers) {
         ctx.strokeStyle = pal.solid2;
@@ -350,6 +370,36 @@ export class TerrainRenderer {
       const x = b.x * TILE, y = b.y * TILE, bw = b.w * TILE, bh = b.h * TILE;
       if (x > view.x1 || x + bw < view.x0 || y > view.y1 || y + bh < view.y0) continue;
       const sh = shakeIds && shakeIds[b.id] > 0 ? (Math.random() - 0.5) * 6 : 0;
+      if (b.slamOnly) {
+        // 내려찍기로만 부서지는 얼음 덮개: 금 간 얼음 + 아래 화살표 문양
+        const g = ctx.createLinearGradient(0, y, 0, y + bh);
+        g.addColorStop(0, '#d8eefa');
+        g.addColorStop(1, '#6f97b2');
+        ctx.fillStyle = g;
+        ctx.fillRect(x + sh, y, bw, bh);
+        ctx.strokeStyle = 'rgba(40,70,95,0.7)';
+        ctx.lineWidth = 1.5;
+        const rr = mulberry32(b.x * 17 + b.y * 3);
+        ctx.beginPath();
+        for (let k = 0; k < 9; k++) {
+          const sx = x + sh + rr() * bw, sy = y + rr() * bh;
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(sx + (rr() - 0.5) * 26, sy + rr() * 18);
+        }
+        ctx.stroke();
+        ctx.fillStyle = `rgba(255,255,255,${0.35 + 0.2 * Math.sin(time * 3)})`;
+        for (let k = 0; k < b.w; k += 2) {
+          const ax = x + sh + (k + Math.min(1, b.w - k) / 2) * TILE;
+          ctx.beginPath();
+          ctx.moveTo(ax - 8, y + 10);
+          ctx.lineTo(ax + 8, y + 10);
+          ctx.lineTo(ax, y + 22);
+          ctx.fill();
+        }
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.fillRect(x + sh, y, bw, 3);
+        continue;
+      }
       ctx.fillStyle = pal.solid2;
       ctx.fillRect(x + sh, y, bw, bh);
       ctx.strokeStyle = pal.rimDim;
@@ -374,6 +424,7 @@ export class TerrainRenderer {
         ctx.stroke();
       }
     }
+    this._drawGimmicks(ctx, view, pal, time);
     // 게이트: 타일이 T_GATE인 열을 찾아 그림
     const tx0 = Math.max(0, Math.floor(view.x0 / TILE)), tx1 = Math.min(w.W - 1, Math.floor(view.x1 / TILE));
     const ty0 = Math.max(0, Math.floor(view.y0 / TILE)), ty1 = Math.min(w.H - 1, Math.floor(view.y1 / TILE));
@@ -397,5 +448,150 @@ export class TerrainRenderer {
           ctx.fill();
         }
       }
+  }
+
+  // 3장 기믹: 바람/물살, 무너지는 얼음, 움직이는 발판
+  _drawGimmicks(ctx, view, pal, time) {
+    const w = this.world;
+    const vis = (x, y, ww, hh) => !(x > view.x1 || x + ww < view.x0 || y > view.y1 || y + hh < view.y0);
+    for (const f of w.fields) {
+      if (!vis(f.x, f.y, f.w, f.h)) continue;
+      if (f.kind === 'wind' && !f.fy) {
+        // 옆바람: 가로로 흐르는 흰 줄
+        const dir = Math.sign(f.fx) || 1;
+        ctx.fillStyle = 'rgba(220,235,255,0.06)';
+        ctx.fillRect(f.x, f.y, f.w, f.h);
+        ctx.strokeStyle = 'rgba(235,245,255,0.45)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        for (let j = 0; j < f.h / 12; j++) {
+          const yy = f.y + 6 + j * 12 + Math.sin(time * 3 + j) * 2;
+          const off = ((time * 420 * dir + j * 71) % 140 + 140) % 140;
+          for (let xx = f.x - 140 + off; xx < f.x + f.w; xx += 140) {
+            const a = Math.max(f.x, xx), b = Math.min(f.x + f.w, xx + 46);
+            if (b > a) { ctx.moveTo(a, yy); ctx.lineTo(b, yy); }
+          }
+        }
+        ctx.stroke();
+        continue;
+      }
+      if (f.kind === 'stream') {
+        // 물살: 반투명 물 + 흐르는 줄무늬
+        const g = ctx.createLinearGradient(0, f.y, 0, f.y + f.h);
+        g.addColorStop(0, 'rgba(120,190,230,0.10)');
+        g.addColorStop(1, 'rgba(60,130,190,0.32)');
+        ctx.fillStyle = g;
+        ctx.fillRect(f.x, f.y, f.w, f.h);
+        ctx.strokeStyle = 'rgba(220,245,255,0.45)';
+        ctx.lineWidth = 1.5;
+        const dir = Math.sign(f.fx) || 1;
+        ctx.beginPath();
+        for (let j = 0; j < f.h / 14; j++) {
+          const yy = f.y + 7 + j * 14;
+          const off = ((time * 160 * dir + j * 53) % 90 + 90) % 90;
+          for (let xx = f.x - 90 + off; xx < f.x + f.w; xx += 90) {
+            const a = Math.max(f.x, xx), b = Math.min(f.x + f.w, xx + 34);
+            if (b > a) {
+              ctx.moveTo(a, yy);
+              ctx.lineTo(b, yy);
+            }
+          }
+        }
+        ctx.stroke();
+      } else {
+        // 상승 기류: 옅은 기둥 + 위로 흐르는 눈송이 선
+        const up = f.fy < 0;
+        const g = ctx.createLinearGradient(f.x, 0, f.x + f.w, 0);
+        g.addColorStop(0, 'rgba(200,235,255,0)');
+        g.addColorStop(0.5, 'rgba(200,235,255,0.10)');
+        g.addColorStop(1, 'rgba(200,235,255,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(f.x, f.y, f.w, f.h);
+        ctx.strokeStyle = 'rgba(235,248,255,0.5)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        const n = Math.ceil(f.w / 18);
+        for (let i = 0; i < n; i++) {
+          const xx = f.x + 9 + i * 18 + Math.sin(time * 2 + i) * 4;
+          for (let k = 0; k < 3; k++) {
+            const sp = up ? -1 : 1;
+            const ph = ((time * 260 + i * 97 + k * (f.h / 3)) % f.h + f.h) % f.h;
+            const yy = sp < 0 ? f.y + f.h - ph : f.y + ph;
+            ctx.moveTo(xx, yy);
+            ctx.lineTo(xx, yy + 16 * -sp);
+          }
+        }
+        ctx.stroke();
+      }
+    }
+    for (const c of w.crumbles) {
+      if (c.st === 'gone') {
+        // 다시 얼어붙는 중: 희미한 윤곽
+        const k = Math.min(1, c.t / 3);
+        ctx.strokeStyle = `rgba(200,235,255,${0.15 + k * 0.35})`;
+        ctx.setLineDash([4, 5]);
+        ctx.strokeRect(c.x * TILE + 1, c.y * TILE + 1, c.w * TILE - 2, TILE * 0.55);
+        ctx.setLineDash([]);
+        continue;
+      }
+      const x = c.x * TILE, y = c.y * TILE, cw = c.w * TILE;
+      if (!vis(x, y, cw, TILE)) continue;
+      const sh = c.st === 'shake' ? (Math.random() - 0.5) * (2 + c.t * 8) : 0;
+      const g = ctx.createLinearGradient(0, y, 0, y + TILE);
+      g.addColorStop(0, '#e6f6ff');
+      g.addColorStop(0.5, '#9cc6e0');
+      g.addColorStop(1, 'rgba(80,130,170,0.4)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(x + sh, y);
+      ctx.lineTo(x + cw + sh, y);
+      ctx.lineTo(x + cw + sh - 4, y + TILE * 0.55);
+      for (let i = c.w * 2; i >= 0; i--) ctx.lineTo(x + sh + (i * cw) / (c.w * 2), y + TILE * (0.55 + (i % 2) * 0.35));
+      ctx.lineTo(x + sh + 4, y + TILE * 0.55);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.fillRect(x + sh, y, cw, 2.5);
+      ctx.strokeStyle = c.st === 'shake' ? 'rgba(30,60,90,0.9)' : 'rgba(60,100,130,0.45)';
+      ctx.lineWidth = 1.2;
+      const rr = mulberry32(c.x * 7 + c.y * 13);
+      ctx.beginPath();
+      const cracks = c.st === 'shake' ? 6 + Math.floor(c.t * 14) : 3;
+      for (let k = 0; k < cracks; k++) {
+        const sx = x + sh + rr() * cw;
+        ctx.moveTo(sx, y + 2);
+        ctx.lineTo(sx + (rr() - 0.5) * 14, y + TILE * 0.5);
+      }
+      ctx.stroke();
+    }
+    for (const m of w.movers) {
+      if (!vis(m.x, m.y, m.w, 24)) continue;
+      // 궤도 점선
+      ctx.strokeStyle = 'rgba(200,225,240,0.12)';
+      ctx.setLineDash([3, 7]);
+      ctx.beginPath();
+      ctx.moveTo(m.ax + m.w / 2, m.ay + 8);
+      ctx.lineTo(m.bx + m.w / 2, m.by + 8);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // 얼음 썰매 발판: 나무 판 + 얼음 테 + 아래 매단 등불
+      ctx.fillStyle = '#3a2c22';
+      ctx.fillRect(m.x, m.y + 2, m.w, 12);
+      ctx.fillStyle = '#5a4434';
+      for (let xx = m.x + 4; xx < m.x + m.w - 4; xx += 16) ctx.fillRect(xx, m.y + 4, 12, 3);
+      ctx.fillStyle = '#d8f0ff';
+      ctx.fillRect(m.x - 2, m.y, m.w + 4, 3);
+      ctx.fillStyle = 'rgba(190,230,255,0.8)';
+      for (let xx = m.x + 6; xx < m.x + m.w - 4; xx += 14) {
+        ctx.beginPath();
+        ctx.moveTo(xx, m.y + 14);
+        ctx.lineTo(xx + 3, m.y + 22 + ((xx * 7) % 5));
+        ctx.lineTo(xx + 6, m.y + 14);
+        ctx.fill();
+      }
+      ctx.fillStyle = `rgba(255,190,110,${0.7 + 0.2 * Math.sin(time * 5 + m.ax)})`;
+      ctx.beginPath();
+      ctx.arc(m.x + m.w / 2, m.y + 20, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 }

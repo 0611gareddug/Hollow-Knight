@@ -9,6 +9,9 @@ export const ZONES = {
   5: { name: '녹슨 톱니 도시', sub: 'Rusted Cogworks', music: 'zone5' },
   6: { name: '하늘 정원', sub: 'Sky Garden', music: 'zone6' },
   7: { name: '재의 왕좌', sub: 'Throne of Ash', music: 'zone7' },
+  8: { name: '얼어붙은 변경', sub: 'Frozen Frontier', music: 'zone8' },
+  9: { name: '서리 호수', sub: 'Frost Lake', music: 'zone9' },
+  10: { name: '눈보라 산정', sub: 'Blizzard Peak', music: 'zone10' },
 };
 
 export const STORY = {
@@ -48,6 +51,24 @@ export const STORY = {
         r.lamp(8, 16).lamp(20, 16).lamp(29, 16);
         r.sign(17, 16, '{U} 벤치에 앉기 : 저장 · 체력 회복');
         r.sign(5, 16, '적을 베어 불씨를 모으고 {H} 길게 : 회복');
+        // 위쪽 마을로 오르는 나무 계단
+        r.plat(21, 14, 4).plat(26, 11, 4).plat(22, 8, 3).plat(27, 5, 3).plat(25, 2, 5);
+        r.empty(26, 0, 4, 1);
+        r.sign(30, 16, '↑ 등불 마을 (구출한 주민들이 모여 산다)');
+      },
+    },
+    {
+      id: 'a3v', zone: 1, name: '등불 마을', x: 100, y: -22, w: 34, h: 22, dark: 0.12, music: 'village',
+      build: (r) => {
+        r.plat(26, 21, 4);
+        r.solid(0, 1, 34, 2).solid(0, 3, 3, 2).solid(31, 3, 3, 2);
+        // 집 (구출 전에는 빈집)
+        r.house(3, 20, 'durumi').house(8, 20, 'moru').house(13, 20, 'gomok');
+        r.house(18, 20, 'iseul').house(23, 20, 'hyeon').house(31, 20, 'seorigit');
+        r.npc(4, 20, 'durumi', 'v').npc(9, 20, 'moru', 'v').npc(14, 20, 'gomok', 'v');
+        r.npc(19, 20, 'iseul', 'v').npc(24, 20, 'hyeon', 'v').npc(32, 20, 'seorigit', 'v');
+        r.lamp(1, 20).lamp(11, 20).lamp(21, 20).lamp(29, 20);
+        r.sign(6, 20, '등불 마을 — 길 잃은 이들이 돌아오는 곳');
       },
     },
     {
@@ -59,6 +80,7 @@ export const STORY = {
         r.sign(4, 16, '{DN}+{J} : 발판 아래로 내려가기');
         r.lamp(3, 16);
         r.pickup('charm', 27, 40, 'a4_charm', 'swiftwing');
+        r.npc(9, 47, 'durumi', 'r');
         r.e('crawler', 24, 24).e('moth', 15, 27).e('moth', 10, 39).e('crawler', 16, 36);
       },
     },
@@ -120,6 +142,7 @@ export const STORY = {
       build: (r) => {
         r.solid(0, 14, 36, 4).solid(16, 1, 6, 3);
         r.bench(8, 13).lamp(5, 13).lamp(12, 13);
+        r.npc(31, 13, 'moru', 'r');
         r.e('frog', 23, 13).e('dropper', 29, 1);
       },
     },
@@ -150,6 +173,10 @@ export const STORY = {
         r.solid(0, 13, 60, 3).solid(8, 1, 4, 3).solid(26, 1, 6, 2).solid(44, 1, 3, 4);
         r.lamp(3, 12).lamp(30, 12).lamp(57, 12);
         r.pickup('charm', 28, 12, 'c2_charm', 'longwick');
+        r.npc(48, 12, 'gomok', 'r');
+        // 숨겨진 길: 오른쪽 천장의 금 간 돌 (위로 베기)
+        r.plat(49, 10, 4).plat(54, 6, 4).solid(55, 1, 1, 2);
+        r.brk('c2s_ceil', 56, 1, 3, 2, 3);
         r.e('monk', 18, 12).e('knight', 40, 12).e('moth', 30, 5).e('monk', 52, 12);
       },
     },
@@ -248,7 +275,8 @@ export const STORY = {
         r.anchor(15, 40).anchor(9, 31).anchor(16, 22).anchor(10, 13).anchor(20, 8);
         r.solid(22, 9, 7, 1);
         r.lamp(26, 52).lamp(25, 8);
-        r.e('wasp', 12, 30).e('wasp', 18, 12).e('sentry', 22, 37);
+        r.npc(22, 37, 'iseul', 'r');
+        r.e('wasp', 12, 30).e('wasp', 18, 12).e('sentry', 23, 37);
       },
     },
     {
@@ -282,6 +310,7 @@ export const STORY = {
       build: (r) => {
         r.solid(0, 13, 28, 3);
         r.bench(8, 12).shop(19, 12).lamp(3, 12).lamp(13, 12).lamp(25, 12);
+        r.npc(13, 12, 'hyeon', 'r');
       },
     },
     {
@@ -329,6 +358,154 @@ export const STORY = {
         r.solid(0, 29, 52, 3).solid(18, 1, 16, 2);
         r.anchor(8, 14).anchor(19, 10).anchor(33, 10).anchor(44, 14);
         r.boss('devourer', 34, 28, 7, [[1, 24, 1, 5]]);
+        r.seal(51, 24, 1, 5, 'devourer');
+      },
+    },
+    // ═════════ 3장: 얼어붙은 변경 ═════════
+    // ───────── 구역 8: 얼어붙은 변경 ─────────
+    {
+      id: 'g1', zone: 8, name: '변경의 문', x: 1174, y: -140, w: 40, h: 20, dark: 0.35,
+      build: (r) => {
+        r.solid(0, 15, 40, 5).solid(10, 1, 4, 2).solid(28, 1, 6, 3);
+        r.empty(12, 15, 14, 3).spike(12, 17, 14);
+        r.crumble(13, 12, 3).crumble(18, 11, 3).crumble(23, 12, 3);
+        r.lamp(3, 14).lamp(37, 14);
+        r.sign(7, 14, '얼음 발판은 밟으면 무너진다 — 멈추지 말 것');
+        r.npc(31, 14, 'seorigit', 'r');
+        r.e('icicle', 20, 3).e('frostling', 35, 14).e('frostling', 6, 14);
+      },
+    },
+    {
+      id: 'g2', zone: 8, name: '바람 골짜기', x: 1214, y: -160, w: 34, h: 40, dark: 0.3,
+      build: (r) => {
+        r.solid(0, 35, 34, 5).solid(21, 9, 13, 2).solid(0, 1, 34, 1);
+        r.field(12, 6, 7, 29, 0, -1500, 'wind');
+        r.plat(1, 11, 6).plat(3, 28, 6).plat(24, 26, 6);
+        r.pickup('shard', 3, 10, 'g2_shard');
+        r.lamp(5, 34).lamp(30, 34).lamp(31, 8);
+        r.sign(9, 34, '상승 기류에 몸을 맡기면 높이 오를 수 있다');
+        r.e('owl', 27, 18).e('icewisp', 6, 20).e('frostling', 28, 34);
+      },
+    },
+    {
+      id: 'g3', zone: 8, name: '얼음 썰매길', x: 1248, y: -164, w: 50, h: 20, dark: 0.35,
+      build: (r) => {
+        r.solid(0, 13, 50, 7).solid(14, 1, 6, 2).solid(38, 1, 4, 3);
+        r.empty(16, 13, 18, 6).spike(16, 18, 18);
+        r.mover(17, 11, 4, 6, 0, 4.4, 0).mover(26, 11, 4, 4, 0, 4.4, 0.5);
+        r.anchor(25, 5);
+        r.bench(6, 12).lamp(3, 12).lamp(10, 12).lamp(44, 12);
+        r.sign(13, 12, '움직이는 발판에 올라타 건너기');
+        r.e('yeti', 41, 12).e('frostling', 36, 12);
+      },
+    },
+    {
+      id: 'g4', zone: 8, name: '눈뿔 사슴의 길목', x: 1298, y: -172, w: 44, h: 24, dark: 0.35, bossRoom: true,
+      build: (r) => {
+        r.solid(0, 21, 44, 3).solid(16, 1, 12, 2);
+        r.brk('g4_ice', 36, 21, 4, 2, 3, true);
+        r.boss('stag', 30, 20, 8, [[1, 16, 1, 5]]);
+        r.shrine('slam', 22, 20);
+        r.sign(32, 20, '공중에서 {DN}+{D} : 얼음 덮개를 내려찍어 부수기', 'slam');
+      },
+    },
+    // ───────── 구역 9: 서리 호수 ─────────
+    {
+      id: 'j1', zone: 9, name: '물길 동굴', x: 1330, y: -148, w: 34, h: 30, dark: 0.45,
+      build: (r) => {
+        r.solid(0, 26, 34, 4).solid(12, 1, 6, 2);
+        r.plat(1, 21, 5).plat(6, 16, 4).plat(1, 11, 4).plat(6, 6, 4);
+        r.plat(13, 19, 6);
+        r.field(18, 22, 14, 4, -700, 0, 'stream');
+        r.torch(7, 25, 'j1').torch(16, 18, 'j1').torch(28, 25, 'j1');
+        r.lgate(32, 21, 1, 5, 'j1');
+        r.sign(10, 25, '세 개의 횃불을 베어 모두 밝히면 문이 열린다 (불은 곧 꺼진다)');
+        r.e('icewisp', 22, 10).e('frostling', 24, 25);
+      },
+    },
+    {
+      id: 'j2', zone: 9, name: '얼어붙은 수문', x: 1364, y: -136, w: 56, h: 18, dark: 0.4,
+      build: (r) => {
+        r.solid(0, 14, 56, 4).solid(24, 1, 8, 2);
+        r.plat(8, 10, 5).solid(15, 6, 10, 1);
+        r.torch(21, 5, 'j2', 'lever');
+        r.lgate(54, 9, 1, 5, 'j2');
+        r.lamp(3, 13).lamp(48, 13).lamp(54, 13);
+        r.sign(6, 13, '수문을 여는 레버는 어딘가 높은 곳에');
+        r.e('frostknight', 32, 13).e('owl', 50, 5).e('icicle', 37, 3);
+      },
+    },
+    {
+      id: 'j3', zone: 9, name: '눈사태 비탈', x: 1420, y: -140, w: 70, h: 22, dark: 0.35,
+      build: (r) => {
+        r.solid(0, 18, 70, 4).solid(20, 1, 8, 2).solid(48, 1, 6, 2);
+        r.empty(20, 18, 4, 3).spike(20, 20, 4);
+        r.solid(30, 15, 3, 3);
+        r.empty(38, 18, 5, 3).spike(38, 20, 5);
+        r.solid(46, 16, 2, 2);
+        r.empty(52, 18, 5, 3).spike(52, 20, 5).crumble(52, 18, 5);
+        r.chase(6, 270, 64);
+        r.lamp(3, 17).lamp(66, 17);
+      },
+    },
+    {
+      id: 'j4', zone: 9, name: '얼음 호수 왕좌', x: 1490, y: -146, w: 44, h: 28, dark: 0.35, bossRoom: true,
+      build: (r) => {
+        r.solid(0, 24, 44, 4).solid(36, 9, 8, 1).solid(14, 1, 16, 2);
+        r.plat(6, 18, 6).plat(31, 18, 6);
+        r.anchor(12, 9).anchor(30, 6);
+        r.boss('empress', 26, 15, 8, [[1, 19, 1, 5], [43, 4, 1, 5]]);
+      },
+    },
+    // ───────── 구역 10: 눈보라 산정 ─────────
+    {
+      id: 'i1', zone: 10, name: '산기슭 쉼터', x: 1534, y: -150, w: 30, h: 16, dark: 0.15,
+      build: (r) => {
+        r.solid(0, 13, 30, 3).solid(12, 1, 6, 2);
+        r.bench(8, 12).shop(20, 12).lamp(3, 12).lamp(14, 12).lamp(27, 12);
+        r.sign(16, 12, '정상까지 남은 등불은 셋');
+      },
+    },
+    {
+      id: 'i2', zone: 10, name: '눈보라 절벽', x: 1564, y: -190, w: 32, h: 56, dark: 0.4,
+      build: (r) => {
+        r.solid(0, 53, 32, 3).solid(24, 9, 8, 1);
+        r.plat(4, 48, 6).plat(18, 43, 6).plat(6, 38, 6).plat(19, 33, 6).plat(5, 28, 6).plat(18, 23, 6).plat(6, 18, 6).plat(15, 13, 6);
+        r.field(1, 30, 30, 3, 900, 0, 'wind').field(1, 20, 30, 3, -900, 0, 'wind');
+        r.anchor(12, 40).anchor(20, 26).anchor(11, 14);
+        r.lamp(3, 52).lamp(27, 8);
+        r.e('owl', 26, 19).e('icewisp', 12, 32).e('icicle', 9, 1).e('frostling', 21, 42);
+      },
+    },
+    {
+      id: 'i3', zone: 10, name: '얼어붙은 등불길', x: 1596, y: -194, w: 40, h: 16, dark: 0.45,
+      build: (r) => {
+        r.solid(0, 13, 40, 3).solid(10, 1, 4, 2).solid(26, 1, 5, 3);
+        r.plat(17, 9, 5);
+        r.empty(24, 13, 7, 2).spike(24, 14, 7).crumble(25, 13, 5);
+        r.torch(4, 12, 'i3').torch(19, 8, 'i3').torch(34, 12, 'i3');
+        r.lgate(38, 8, 1, 5, 'i3');
+        r.bench(9, 12);
+        r.e('frostknight', 30, 12).e('icewisp', 20, 4);
+      },
+    },
+    {
+      id: 'i4', zone: 10, name: '눈보라의 정상', x: 1636, y: -206, w: 52, h: 30, dark: 0.4, bossRoom: true,
+      build: (r) => {
+        r.solid(0, 25, 52, 5).solid(20, 1, 12, 2);
+        r.plat(8, 19, 6).plat(38, 19, 6).plat(22, 15, 8);
+        r.anchor(14, 9).anchor(37, 9);
+        r.boss('blizzard', 34, 14, 8, [[1, 20, 1, 5]]);
+      },
+    },
+    // ───────── 숨겨진 방: 그림자의 둥지 (1장 재의 회랑 천장 위) ─────────
+    {
+      id: 'c2s', zone: 3, name: '그림자의 둥지', x: 532, y: 18, w: 30, h: 16, dark: 0.6, bossRoom: true,
+      build: (r) => {
+        r.solid(0, 13, 30, 2).empty(26, 13, 3, 2).plat(26, 13, 3);
+        r.solid(25, 1, 1, 1);
+        r.boss('shademoth', 6, 12, 22, [[26, 15, 3, 1]], true);
+        r.lamp(28, 12);
       },
     },
   ],
@@ -341,6 +518,11 @@ export const STORY = {
     ['h', 666, 0, 3], ['v', 670, -42, 5], ['v', 710, -42, 5], ['v', 770, -42, 5], ['v', 800, -86, 5], ['v', 830, -86, 5],
     ['v', 874, -86, 5], ['v', 934, -86, 5], ['v', 962, -86, 5], ['v', 992, -130, 5], ['v', 1038, -130, 5],
     ['v', 1098, -130, 5], ['v', 1122, -130, 5],
+    // 3장
+    ['v', 1174, -130, 5], ['v', 1214, -130, 5], ['v', 1248, -156, 5], ['v', 1298, -156, 5], ['h', 1334, -148, 4],
+    ['v', 1364, -127, 5], ['v', 1420, -127, 5], ['v', 1490, -127, 5], ['v', 1534, -142, 5], ['v', 1564, -142, 5],
+    ['v', 1596, -186, 5], ['v', 1636, -186, 5],
+    ['h', 558, 34, 3],
   ],
 };
 
@@ -422,7 +604,7 @@ export const RUSH = {
   }],
   doors: [],
 };
-export const RUSH_ORDER = ['mother', 'bell', 'scarlet', 'keeper', 'smith', 'queen', 'devourer'];
+export const RUSH_ORDER = ['mother', 'bell', 'scarlet', 'keeper', 'smith', 'queen', 'devourer', 'stag', 'empress', 'shademoth', 'blizzard'];
 
 // ───────── PvP 아레나 ─────────
 export const PVP_ARENAS = [

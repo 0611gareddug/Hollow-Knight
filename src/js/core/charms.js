@@ -14,9 +14,14 @@ export const CHARMS = [
   { id: 'fury', name: '맹렬한 검', cost: 2, icon: '⚔', color: '#ff9a5a', desc: '베기 피해 +3', from: '마지막 등불지기 처치' },
   { id: 'deepfocus', name: '깊은 집중', cost: 3, icon: '❂', color: '#ffe2a8', desc: '회복이 느려지는 대신 가면 2개 회복', from: '바람 탑 어딘가' },
   { id: 'wisp', name: '떠도는 불씨', cost: 3, icon: '✧', color: '#ff8a5a', desc: '주위를 도는 작은 불씨가 적을 공격', from: '주홍 광대 처치' },
+  { id: 'ashcrown', name: '재의 왕관', cost: 2, icon: '♛', color: '#ff7a3a', desc: '회복을 마치면 주변 적에게 불길 피해', from: '재를 삼킨 자 처치' },
+  { id: 'frostheart', name: '서리 심장', cost: 2, icon: '❄', color: '#bfe6ff', desc: '내려찍기 피해 2배 · 충격파 범위 +40%', from: '눈뿔 사슴 처치' },
+  { id: 'icemirror', name: '얼음 갑주', cost: 1, icon: '◇', color: '#dff4ff', desc: '피격 후 무적 시간 +50%', from: '서리 여제 처치' },
+  { id: 'galecloak', name: '눈보라 망토', cost: 2, icon: '≋', color: '#e8eef8', desc: '대시 거리 +35%', from: '눈보라 군주 처치' },
+  { id: 'shadowveil', name: '그림자 장막', cost: 1, icon: '☾', color: '#b48bff', desc: '체력이 1칸일 때 베기 피해 +6', from: '그림자 나방 처치' },
 ];
 export const CHARM_BY_ID = Object.fromEntries(CHARMS.map((c) => [c.id, c]));
-export const BOSS_CHARM = { mother: 'ember', bell: 'thorns', keeper: 'fury', scarlet: 'wisp', smith: 'ironchain', queen: 'shadedash' };
+export const BOSS_CHARM = { mother: 'ember', bell: 'thorns', keeper: 'fury', scarlet: 'wisp', smith: 'ironchain', queen: 'shadedash', devourer: 'ashcrown', stag: 'frostheart', empress: 'icemirror', blizzard: 'galecloak', shademoth: 'shadowveil' };
 
 export const charmState = { disabled: false }; // PvP 등에서 모든 부적 효과 끔
 

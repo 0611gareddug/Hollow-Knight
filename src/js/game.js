@@ -21,6 +21,8 @@ import { PROJ } from './entities/projectiles.js';
 import { floodTiles } from './entities/bosses.js';
 import { cx as ecx, cy as ecy } from './entities/common.js';
 import { HUD } from './ui/hud.js';
+import { installGimmicks } from './gimmicks.js';
+import { drawTorch, drawLever, drawNpc, drawHouse } from './render/drawNpc.js';
 import { hasCharm, grantCharm, BOSS_CHARM, CHARM_BY_ID, ensureCharms, charmState } from './core/charms.js';
 
 const STEP = 1 / 120;
@@ -30,6 +32,7 @@ const ABILITY_TEXT = {
   wall: { name: '벽 타기', desc: '벽에 붙어 미끄러지는 중 {J} : 벽 점프' },
   djump: { name: '이단 점프', desc: '공중에서 {J}를 한 번 더' },
   hook: { name: '불씨 사슬', desc: '{K} : 고리·벽·적에 사슬을 걸기 · 누른 채 매달리기 · {J}로 날아오르기' },
+  slam: { name: '내려찍기', desc: '공중에서 {DN} + {D} : 땅을 내려찍어 충격파 · 얼음 덮개 파괴' },
 };
 
 export class Game {
@@ -132,6 +135,7 @@ export class Game {
     for (const id in this.save.broken) this.world.breakWall(id);
     // 봉인: 조건 보스를 잡기 전까지 닫힘
     for (const sl of this.world.seals) if (!this.save.bosses[sl.req]) this.world.setGates([sl], true);
+    this._gimInit();
     this.abilities = this.save.abilities;
     const b = this.save.bench;
     // 이전 버전 저장(월드 기준점이 달랐던 경우) 보정
@@ -152,7 +156,7 @@ export class Game {
     const c = COURSES[courseIdx];
     this.course = c;
     this._loadWorld(c);
-    this.abilities = { dash: true, wall: true, djump: true, hook: true };
+    this.abilities = { dash: true, wall: true, djump: true, hook: true, slam: true };
     this.save = newWorldSave();
     this._setupPeers(roster);
     this.myBench = this.world.spawn;
@@ -167,7 +171,7 @@ export class Game {
   startRush(net, order, roster) {
     this._common(net, 'rush');
     this._loadWorld(RUSH);
-    this.abilities = { dash: true, wall: true, djump: true, hook: true };
+    this.abilities = { dash: true, wall: true, djump: true, hook: true, slam: true };
     this.save = newWorldSave();
     this._setupPeers(roster);
     this.myBench = this.world.spawn;
@@ -184,7 +188,7 @@ export class Game {
     const A = PVP_ARENAS[arenaIdx] || PVP_ARENAS[0];
     this.arena = A;
     this._loadWorld(A);
-    this.abilities = { dash: true, wall: true, djump: true, hook: true };
+    this.abilities = { dash: true, wall: true, djump: true, hook: true, slam: true };
     this.save = newWorldSave();
     charmState.disabled = true; // 모두 같은 조건
     this._setupPeers(roster);
@@ -328,6 +332,7 @@ export class Game {
       this.stop();
       this.menus.showTitle('방장과의 연결이 끊어졌습니다.');
     });
+    this._bindNetGim(net);
   }
 
   // 방장: 이벤트 실행 + 전파
@@ -463,6 +468,7 @@ export class Game {
     if (this.rush && !this.rush.done && this.rush.idx >= 0) this.rush.time += dt;
     if (this.mode === 'story' && this.isHost) this.save.playTime += dt;
 
+    W.tick(dt, this.time);
     if (canMove) P.update(dt, input, this);
     else P.update(dt, { held: {}, pressed: {}, released: {} }, this);
 
@@ -486,6 +492,7 @@ export class Game {
     this._combat(dt);
     this._wisp(dt);
     this._interact(dt);
+    this._gimStep(dt);
     this._coins(dt);
 
     // 원격 플레이어
@@ -598,6 +605,8 @@ export class Game {
       if (room.zone !== this.lastZone) this.lastZone = room.zone;
     } else this.lastZone = room.zone;
     this.bg.setZone(room.zone);
+    // 방 고유 음악 (마을 등) – 같은 곡이면 audio.music 이 무시
+    if (this.mode === 'story' && !first && !this._bossRunning()) audio.music(room.music || ZONES[room.zone].music);
   }
 
   _bossRunning() {
@@ -672,6 +681,17 @@ export class Game {
         if (b.broken || P.atkHit.has('b' + b.id)) continue;
         if (!overlap(box, { x: b.x * TILE, y: b.y * TILE, w: b.w * TILE, h: b.h * TILE })) continue;
         P.atkHit.add('b' + b.id);
+        if (b.slamOnly) {
+          // 얼음 덮개: 베기로는 튕겨남 (내려찍기 필요)
+          audio.play('clank', { vol: 0.7, pitch: 1.3 });
+          fx.burst(P.cx + P.facing * 30, P.cy, 6, { kind: 'spark', color: '#dff4ff', smin: 200, smax: 400, grav: 0, add: true, lmin: 0.08, lmax: 0.16 });
+          P.onHitRecoil(P.atkDir === 'down' ? 'spike' : 'wall');
+          if (!this._slamHintT || this.time > this._slamHintT) {
+            this._slamHintT = this.time + 6;
+            this.showToast(this.abilities.slam ? '단단한 얼음이다 — 내려찍기로 부술 수 있다' : '단단한 얼음이다… 베어서는 부서지지 않는다', 2.5);
+          }
+          continue;
+        }
         audio.play('crack');
         this.breakShake[b.id] = 0.2;
         fx.burst(P.cx + P.facing * 40, P.cy, 10, { kind: 'shard', color: '#1b2428', dir: P.facing > 0 ? Math.PI : 0, spread: 0.9, smin: 100, smax: 300 });
@@ -850,14 +870,14 @@ export class Game {
       const room = this.world.roomById[t.room];
       if (!room || !room.boss || this.bossActive[room.id]) continue;
       if (this.save.bosses[room.boss.kind]) continue;
-      if (t.cx > room.boss.trigger) this._startBoss(room, room.boss.kind, room.boss.x, room.boss.y);
+      if (room.boss.fromRight ? t.cx < room.boss.trigger : t.cx > room.boss.trigger) this._startBoss(room, room.boss.kind, room.boss.x, room.boss.y);
     }
   }
 
   _startBoss(room, kind, x, y) {
     this.sim.killRoom(room.id);
     const e = this.sim.spawn(kind, x, y, room.id, {});
-    e.facing = -1;
+    e.facing = room.boss && room.boss.fromRight ? 1 : -1;
     this.bossActive[room.id] = e.id;
     this.event('bossIntro', { kind, room: room.id });
   }
@@ -895,6 +915,7 @@ export class Game {
   // ═══════════════ 이벤트 (모든 피어에서 실행) ═══════════════
   playEvent(n, d) {
     const P = this.player;
+    if (this._gimEvent(n, d)) return;
     switch (n) {
       case 'sfx':
         if (this._near(d.x, d.y)) audio.play(d.s, { pitch: d.p || 1, vol: 0.8 });
@@ -911,6 +932,11 @@ export class Game {
         if (d.s && this._near(d.x, d.y)) audio.play(d.s, { vol: 0.7 });
         break;
       case 'splash':
+        if (d.ice) {
+          fx.burst(d.x, d.y, 10, { kind: 'shard', color: '#e8f6ff', dir: -Math.PI / 2, spread: 1.3, smin: 100, smax: 320, szmin: 2, szmax: 5 });
+          if (this._near(d.x, d.y)) audio.play('crack', { vol: 0.45, pitch: 1.5 });
+          break;
+        }
         fx.burst(d.x, d.y, 12, { kind: 'dot', color: '#6fe0c8', dir: -Math.PI / 2, spread: 1.2, smin: 100, smax: 300, add: true });
         if (this._near(d.x, d.y)) audio.play('splash', { vol: 0.6 });
         break;
@@ -974,7 +1000,7 @@ export class Game {
           if (d.kind === 'keeper' && !profile.notchKeeper) {
             ensureCharms();
             profile.notchKeeper = 1;
-            profile.notches = Math.min(6, profile.notches + 1);
+            profile.notches = Math.min(7, profile.notches + 1);
           }
           if (!profile.beaten.includes(d.kind)) {
             profile.beaten.push(d.kind);
@@ -982,7 +1008,7 @@ export class Game {
           }
           if (this.isHost) saveWorld(this.save);
           setTimeout(() => {
-            if (this.running && this.mode === 'story') audio.music(ZONES[room.zone].music);
+            if (this.running && this.mode === 'story') audio.music(room.music || ZONES[room.zone].music);
           }, 2500);
           for (const sl of this.world.seals) if (sl.req === d.kind) this.world.setGates([sl], false);
           if (d.kind === 'keeper') {
@@ -993,6 +1019,10 @@ export class Game {
             this.save.cleared2 = true;
             if (this.isHost) saveWorld(this.save);
             setTimeout(() => this._ending(2), 4200);
+          } else if (d.kind === 'blizzard') {
+            this.save.cleared3 = true;
+            if (this.isHost) saveWorld(this.save);
+            setTimeout(() => this._ending(3), 4200);
           }
         } else if (this.mode === 'rush' && this.rush) {
           this.rush.state = 'break';
@@ -1292,7 +1322,18 @@ export class Game {
     else this.net.send({ t: 'heal', to: best });
     this.showToast('동료에게 불씨를 나눠주었습니다', 1.8);
   }
-  onHeal() {}
+  onHeal(P) {
+    if (!hasCharm('ashcrown') || this.mode === 'race' || this.mode === 'pvp') return;
+    const rid = this.currentRoom && this.currentRoom.id;
+    fx.ring(P.cx, P.cy, 10, 160, 0.4, '255,140,60', 6);
+    fx.burst(P.cx, P.cy, 24, { kind: 'glow', color: '#ff8a3a', smin: 120, smax: 420, grav: -40, add: true, lmin: 0.3, lmax: 0.7 });
+    audio.play('boom', { vol: 0.5, pitch: 1.4 });
+    for (const e of this.sim.list()) {
+      if (e.room !== rid) continue;
+      const ex = e.x + e.w / 2, ey = e.y + e.h / 2;
+      if (Math.hypot(ex - P.cx, ey - P.cy) < 160) this._remoteHit(e, 12, ex, ey);
+    }
+  }
   onSlash() {}
 
   // ═══════════════ 상호작용 ═══════════════
@@ -1391,7 +1432,7 @@ export class Game {
     if (o.ability === 'mask3') {
       return { shrineAvail: !!this.save.bosses.scarlet, shrineTaken: (profile.unlockedMasks || []).includes(3) };
     }
-    const req = { dash: 'mother', wall: 'bell', djump: null, hook: 'keeper' }[o.ability];
+    const req = { dash: 'mother', wall: 'bell', djump: null, hook: 'keeper', slam: 'stag' }[o.ability];
     return { shrineAvail: this.mode === 'story' && (!req || !!this.save.bosses[req]), shrineTaken: !!this.abilities[o.ability] };
   }
 
@@ -1698,6 +1739,31 @@ export class Game {
       else if (o.type === 'pickup') {
         st = { taken: this.mode !== 'story' || !!(profile.collected || {})[o.id] };
       }
+      if (o.type === 'torch' || o.type === 'lever') {
+        const lit = o.litUntil === Infinity || o.litUntil > time;
+        const rem = o.litUntil === Infinity || o.type === 'lever' ? Infinity : Math.max(0, (o.litUntil - time) / 9);
+        if (o.type === 'torch') drawTorch(ctx, o, time, { lit, rem });
+        else drawLever(ctx, o, time, { lit });
+        if (lit && o.type === 'torch') {
+          this.light.light(o.x, o.y - 50, 210, 1);
+          this.light.glow(o.x, o.y - 50, 44, 'amber', 0.9);
+        } else if (o.type === 'torch') this.light.light(o.x, o.y - 42, 60, 0.4);
+        continue;
+      } else if (o.type === 'npc') {
+        if (!this._npcVisible(o)) continue;
+        drawNpc(ctx, o, time, P.cx);
+        this.light.light(o.x, o.y - 40, 150, 0.7);
+        continue;
+      } else if (o.type === 'house') {
+        const r = this.mode === 'story' && !!(this.save.rescued || {})[o.npc];
+        drawHouse(ctx, o, time, r);
+        if (r) {
+          this.light.light(o.x, o.y - 45, 160, 0.8);
+          this.light.glow(o.x - 23, o.y - 45, 22, 'amber', 0.6);
+          this.light.glow(o.x + 31, o.y - 45, 22, 'amber', 0.6);
+        }
+        continue;
+      }
       drawObject(ctx, o, time, pal, st);
       if (o.type === 'lamp') {
         this.light.light(o.x + 10, o.y - 46, 230, 1);
@@ -1752,7 +1818,8 @@ export class Game {
         this.light.light(ecx(e), ecy(e), def.light, 0.85);
         if (e.kind === 'crawler') this.light.glow(ecx(e) - e.facing * 4, e.y - 6, 22, 'amber', 0.8);
         else if (e.kind === 'moth') this.light.glow(ecx(e), ecy(e), 30, 'amber', 0.6);
-        else if (def.boss) this.light.glow(ecx(e), ecy(e), 70, e.kind === 'scarlet' ? 'red' : e.kind === 'bell' ? 'teal' : 'amber', 0.35);
+        else if (def.boss) this.light.glow(ecx(e), ecy(e), 70, e.kind === 'scarlet' ? 'red' : e.kind === 'bell' ? 'teal' : e.kind === 'shademoth' ? 'violet' : e.kind === 'stag' || e.kind === 'empress' || e.kind === 'blizzard' ? 'sky' : 'amber', 0.35);
+        else if (e.kind === 'icewisp') this.light.glow(ecx(e), ecy(e), 30, 'sky', 0.6);
       }
     }
     // 투사체
@@ -1892,6 +1959,7 @@ export class Game {
     const normal = fx.slashes.filter((s) => !s.line);
     const saved = fx.slashes;
     fx.slashes = normal;
+    this._drawChase(ctx, view, time);
     fx.draw(ctx, view);
     fx.slashes = saved;
 
@@ -1989,3 +2057,5 @@ function drawChain(ctx, x0, y0, x1, y1, k, time) {
   ctx.fill();
   ctx.restore();
 }
+
+installGimmicks(Game);

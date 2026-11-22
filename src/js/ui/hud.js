@@ -410,7 +410,7 @@ export class HUD {
     const world = g.world;
     ctx.fillStyle = 'rgba(4,6,8,0.86)';
     ctx.fillRect(0, 0, W, H);
-    const rooms = world.rooms.filter((r) => g.save.explored[r.id]);
+    const rooms = world.rooms.filter((r) => g.save.explored[r.id] || (g.save.mapAll && g.mode === 'story'));
     if (!rooms.length) return;
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
     for (const r of rooms) {
@@ -424,7 +424,8 @@ export class HUD {
     for (const r of rooms) {
       const pal = PALETTES[r.zone];
       const cur = g.currentRoom === r;
-      ctx.fillStyle = cur ? 'rgba(255,210,140,0.25)' : 'rgba(200,215,210,0.08)';
+      const unseen = !g.save.explored[r.id];
+      ctx.fillStyle = cur ? 'rgba(255,210,140,0.25)' : unseen ? 'rgba(200,215,210,0.03)' : 'rgba(200,215,210,0.08)';
       ctx.fillRect(ox + r.x * s, oy + r.y * s, r.w * s, r.h * s);
       ctx.strokeStyle = cur ? '#ffd58a' : pal.rim;
       ctx.lineWidth = 1.5 * ui;
@@ -437,8 +438,15 @@ export class HUD {
       }
     }
     for (const o of world.objects) {
-      if (!g.save.explored[o.room]) continue;
       const x = ox + (o.x / TILE) * s, y = oy + (o.y / TILE) * s;
+      if (o.type === 'npc' && g._npcVisible(o) && (g.save.explored[o.room] || g.save.mapAll)) {
+        ctx.fillStyle = o.spot === 'r' ? '#ff9a6a' : '#e8dcc0';
+        ctx.font = `700 ${12 * ui}px ${SANS}`;
+        ctx.textAlign = 'center';
+        ctx.fillText(o.spot === 'r' ? '!' : '◆', x, y - 4 * ui);
+        continue;
+      }
+      if (!g.save.explored[o.room]) continue;
       if (o.type === 'bench') {
         ctx.fillStyle = '#ffd58a';
         ctx.fillRect(x - 4 * ui, y - 6 * ui, 8 * ui, 4 * ui);
@@ -469,6 +477,6 @@ export class HUD {
     ctx.fillText(z, W / 2, 40 * ui);
     ctx.font = `500 ${12 * ui}px ${SANS}`;
     ctx.fillStyle = '#9fb0ac';
-    ctx.fillText('■ 벤치   ● 상인', W / 2, H - 20 * ui);
+    ctx.fillText('■ 벤치   ● 상인   ! 도움을 기다리는 주민   ◆ 마을 주민', W / 2, H - 20 * ui);
   }
 }

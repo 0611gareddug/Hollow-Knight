@@ -35,4 +35,22 @@ export const PALETTES = {
     solid: '#060202', solid2: '#100604', rim: '#d0603a', rimDim: '#4a1e10', crack: '#1a0a06',
     accent: '#ff8a4a', liquid: [255, 110, 60], dark: [8, 2, 1],
   },
+  // 3장: 얼어붙은 변경 (짙은 남색 + 눈빛)
+  8: {
+    top: '#0a1424', bot: '#2a3e58', fog: [190, 215, 240], far: '#2c4260', mid: '#1c2c44', near: '#101a2a',
+    solid: '#060a12', solid2: '#0e1622', rim: '#dceeff', rimDim: '#4a6280', crack: '#121c2c',
+    accent: '#ffb347', liquid: [150, 210, 255], dark: [3, 6, 12],
+  },
+  // 서리 호수 (청록 얼음)
+  9: {
+    top: '#04151c', bot: '#14404a', fog: [150, 225, 235], far: '#18485a', mid: '#0e3040', near: '#071a24',
+    solid: '#030b10', solid2: '#081620', rim: '#bff4ff', rimDim: '#2f6878', crack: '#0a1c26',
+    accent: '#ffc266', liquid: [120, 220, 240], dark: [1, 6, 10],
+  },
+  // 눈보라 산정 (잿빛 보라 폭풍)
+  10: {
+    top: '#1a1a26', bot: '#55586a', fog: [215, 215, 230], far: '#5a5c70', mid: '#3c3e50', near: '#24263a',
+    solid: '#0a0a12', solid2: '#14141e', rim: '#eeeef8', rimDim: '#6a6c82', crack: '#18182a',
+    accent: '#ffb070', liquid: [190, 200, 240], dark: [8, 8, 14],
+  },
 };

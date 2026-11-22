@@ -27,6 +27,23 @@ export const PROJ = {
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(Math.atan2(p.vy, p.vx));
+      if (p.ex.ice) {
+        ctx.fillStyle = 'rgba(190,230,255,0.35)';
+        ctx.beginPath();
+        ctx.ellipse(-4, 0, 14, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#e8f8ff';
+        ctx.beginPath();
+        ctx.moveTo(11, 0);
+        ctx.lineTo(-2, -4.5);
+        ctx.lineTo(-9, 0);
+        ctx.lineTo(-2, 4.5);
+        ctx.fill();
+        ctx.fillStyle = '#7fb6d8';
+        ctx.fillRect(-2, -1, 8, 2);
+        ctx.restore();
+        return;
+      }
       if (p.ex.feather) {
         ctx.fillStyle = '#eef2f5';
         ctx.beginPath();
@@ -306,13 +323,28 @@ Object.assign(PROJ, {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       if (S.world.solidAt(p.x, p.y + 6) || S.world.solidAt(p.x + Math.sign(p.vx) * 6, p.y)) {
-        S.ev('splash', { x: p.x, y: p.y });
+        S.ev('splash', p.ex.snow ? { x: p.x, y: p.y, ice: 1 } : { x: p.x, y: p.y });
         return false;
       }
       return true;
     },
     hit: (p, b) => circRect(p.x, p.y, 8, b),
     draw(ctx, p, time) {
+      if (p.ex.snow) {
+        ctx.fillStyle = 'rgba(220,240,255,0.35)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#f4fbff';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#b8d4e8';
+        ctx.beginPath();
+        ctx.arc(p.x + 2, p.y + 3, 4, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      }
       if (p.ex.steam || p.ex.ash) {
         ctx.fillStyle = p.ex.steam ? 'rgba(160,240,225,0.45)' : 'rgba(120,90,80,0.5)';
         ctx.beginPath();
@@ -447,11 +479,11 @@ Object.assign(PROJ, {
     draw(ctx, p, time) {
       const f = Math.min(1, (p.life - p.t) * 2);
       ctx.globalAlpha = f;
-      ctx.fillStyle = 'rgba(255,170,80,0.35)';
+      ctx.fillStyle = p.ex.shade ? 'rgba(150,80,220,0.35)' : 'rgba(255,170,80,0.35)';
       ctx.beginPath();
       ctx.arc(p.x, p.y, 15 + Math.sin(time * 6) * 2, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#ffe2a8';
+      ctx.fillStyle = p.ex.shade ? '#e0c0ff' : '#ffe2a8';
       ctx.beginPath();
       ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
       ctx.fill();
@@ -624,6 +656,111 @@ Object.assign(PROJ, {
       ctx.fillStyle = 'rgba(255,120,60,0.5)';
       ctx.fillRect(p.x - 30, p.y - 6, 60, 4);
       ctx.globalAlpha = 1;
+    },
+  },
+});
+
+// ── 3장: 얼음 ──
+Object.assign(PROJ, {
+  // 바닥에서 솟는 얼음 가시: 균열 예고(warn) → 솟음(0.35초 판정)
+  icespike: {
+    light: 60, glow: 'sky',
+    init(p, S) {
+      // 바닥 높이로 보정
+      let y = p.y - 4;
+      for (let k = 0; k < 6 && !S.world.solidAt(p.x, y + 4); k++) y += 16;
+      p.y = y;
+      p.ex.ok = S.world.solidAt(p.x, p.y + 6) ? 1 : 0;
+    },
+    update: (p) => p.ex.ok !== 0,
+    hit: (p, b) => p.t > p.ex.warn && p.t < p.ex.warn + 0.35 && rr({ x: p.x - 12, y: p.y - (p.ex.short ? 38 : 66), w: 24, h: p.ex.short ? 38 : 66 }, b),
+    draw(ctx, p, time) {
+      const w = p.ex.warn;
+      if (p.t < w) {
+        const k = p.t / w;
+        ctx.strokeStyle = `rgba(200,235,255,${0.3 + k * 0.6})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(p.x - 14 * k - 4, p.y);
+        ctx.lineTo(p.x - 4, p.y - 2);
+        ctx.lineTo(p.x + 3, p.y + 1);
+        ctx.lineTo(p.x + 14 * k + 4, p.y - 1);
+        ctx.stroke();
+        ctx.fillStyle = `rgba(220,245,255,${k * 0.5})`;
+        for (let i = 0; i < 3; i++) ctx.fillRect(p.x - 8 + i * 7, p.y - 4 - ((time * 60 + i * 9) % (8 + k * 14)), 2, 2);
+        return;
+      }
+      const t = p.t - w;
+      const up = Math.min(1, t / 0.08), fade = Math.max(0, 1 - (t - 0.4) / 0.3);
+      if (fade <= 0) return;
+      ctx.globalAlpha = fade;
+      const h = (p.ex.short ? 40 : 66) * up;
+      const g = ctx.createLinearGradient(0, p.y - h, 0, p.y);
+      g.addColorStop(0, '#f4fbff');
+      g.addColorStop(1, '#6f9fc4');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(p.x - 13, p.y);
+      ctx.lineTo(p.x - 4, p.y - h * 0.7);
+      ctx.lineTo(p.x, p.y - h);
+      ctx.lineTo(p.x + 5, p.y - h * 0.6);
+      ctx.lineTo(p.x + 13, p.y);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.fillRect(p.x - 2, p.y - h * 0.85, 2, h * 0.6);
+      ctx.globalAlpha = 1;
+    },
+  },
+  // 고드름 낙하: (warn>0) 천장 반짝임 + 바닥 그림자 예고 후 떨어짐
+  icefall: {
+    light: 40, glow: 'sky',
+    init(p, S) {
+      p.ex.w = p.ex.warn || 0;
+      if (p.ex.w) {
+        p.ex.gy = p.y;
+        p.y = ceilY(S.world, p.x, p.y - 20) + 10;
+        p.ex.cy = p.y;
+      }
+      p.vy = 0;
+    },
+    update(p, dt, S) {
+      if (p.t < p.ex.w) return true;
+      p.vy = Math.min(p.vy + 1700 * dt, 1100);
+      p.y += p.vy * dt;
+      if (S.world.solidAt(p.x, p.y + 14)) {
+        S.ev('splash', { x: p.x, y: p.y + 10, ice: 1 });
+        return false;
+      }
+      return true;
+    },
+    hit: (p, b) => p.t >= p.ex.w && rr({ x: p.x - 7, y: p.y - 16, w: 14, h: 32 }, b),
+    draw(ctx, p, time) {
+      if (p.t < p.ex.w) {
+        const k = p.t / p.ex.w;
+        if (p.ex.gy) {
+          ctx.fillStyle = `rgba(0,10,20,${0.2 + k * 0.4})`;
+          ctx.beginPath();
+          ctx.ellipse(p.x, p.ex.gy - 2, 6 + k * 10, 3.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = `rgba(200,235,255,${0.08 + k * 0.18})`;
+          ctx.setLineDash([3, 6]);
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x, p.ex.gy);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+      const sh = p.t < p.ex.w ? Math.sin(time * 50) * 1.2 * (p.t / p.ex.w) : 0;
+      const g = ctx.createLinearGradient(0, p.y - 18, 0, p.y + 18);
+      g.addColorStop(0, '#f2fbff');
+      g.addColorStop(1, '#7fb6d8');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(p.x - 8 + sh, p.y - 18);
+      ctx.lineTo(p.x + 8 + sh, p.y - 18);
+      ctx.lineTo(p.x + sh, p.y + 18);
+      ctx.fill();
     },
   },
 });

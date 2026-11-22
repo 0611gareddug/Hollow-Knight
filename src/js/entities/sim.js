@@ -4,10 +4,12 @@ import '../render/enemyArt.js';
 import { BOSSES } from './bosses.js';
 import { ENEMIES2 } from './enemies2.js';
 import { BOSSES2 } from './bosses2.js';
+import { ENEMIES3 } from './enemies3.js';
+import { BOSSES3 } from './bosses3.js';
 import { PROJ, makeProj } from './projectiles.js';
 import { cx, cy } from './common.js';
 
-export const DEFS = Object.assign({}, ENEMIES, BOSSES, ENEMIES2, BOSSES2);
+export const DEFS = Object.assign({}, ENEMIES, BOSSES, ENEMIES2, BOSSES2, ENEMIES3, BOSSES3);
 const KINDS = Object.keys(DEFS);
 const PTYPES = Object.keys(PROJ);
 const HP_SCALE = [1, 1, 1.6, 2.2, 2.8];
@@ -253,6 +255,7 @@ export class Sim {
       v.sx += v.vx * dt;
       v.sy += v.vy * dt;
       if (v.type === 'shard' || v.type === 'lantern' || v.type === 'wax') v.vy += (v.ex.grav || 1400) * dt;
+      else if (v.type === 'icefall' && v.t >= (v.ex.w || 0)) v.vy = Math.min((v.vy || 0) + 1700 * dt, 1100);
       v.x += (v.sx - v.x) * Math.min(1, dt * 20);
       v.y += (v.sy - v.y) * Math.min(1, dt * 20);
     }

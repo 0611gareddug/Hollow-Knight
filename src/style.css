@@ -202,3 +202,26 @@ html.dt-open #dtblock { display: flex; position: fixed; inset: 0; align-items: c
 
 .panel.noanim { animation: none; }
 .screen.dim:has(.noanim) { animation: none; }
+
+/* ── NPC 대화창 ── */
+.dialog { position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(760px, calc(100vw - 32px)); min-height: 120px; padding: 30px 26px 22px; background: linear-gradient(180deg, rgba(10,12,16,0.94), rgba(6,8,10,0.96)); border: 1px solid rgba(232,220,192,0.35); border-radius: 6px; box-shadow: 0 10px 40px rgba(0,0,0,0.6), inset 0 0 30px rgba(255,200,120,0.05); color: #efe6d2; z-index: 30; font-family: "Noto Sans KR", sans-serif; animation: dlgIn 0.22s ease-out; user-select: none; touch-action: manipulation; }
+.dialog.out { animation: dlgOut 0.18s ease-in forwards; }
+.dialog::before, .dialog::after { content: ''; position: absolute; top: 8px; width: 40px; height: 2px; background: linear-gradient(90deg, transparent, rgba(255,213,138,0.7), transparent); }
+.dialog::before { left: 12px; } .dialog::after { right: 12px; }
+.dlg-name { position: absolute; top: -16px; left: 22px; padding: 5px 14px; background: #0c0e12; border: 1px solid var(--c); border-radius: 4px; font-family: "Noto Serif KR", serif; font-weight: 700; font-size: 17px; color: var(--c); letter-spacing: 0.05em; }
+.dlg-name small { margin-left: 8px; font-family: "Noto Sans KR", sans-serif; font-weight: 500; font-size: 12px; color: #9fb0ac; }
+.dlg-text { font-size: 17px; line-height: 1.7; min-height: 2.6em; white-space: pre-wrap; }
+.dlg-next { position: absolute; right: 18px; bottom: 10px; color: #ffd58a; font-size: 13px; animation: dlgBob 0.9s ease-in-out infinite; }
+.dlg-choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.dlg-choices button { flex: 1 1 200px; padding: 10px 14px; background: rgba(255,213,138,0.07); color: #efe6d2; border: 1px solid rgba(255,213,138,0.35); border-radius: 4px; font: 600 15px "Noto Sans KR", sans-serif; text-align: left; cursor: pointer; }
+.dlg-choices button:hover:not([disabled]) { background: rgba(255,213,138,0.16); }
+.dlg-choices button[disabled] { opacity: 0.4; cursor: default; }
+.dlg-choices button small { display: block; font-weight: 400; font-size: 12px; color: #9fb0ac; margin-top: 2px; }
+@keyframes dlgIn { from { opacity: 0; transform: translate(-50%, 14px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes dlgOut { to { opacity: 0; transform: translate(-50%, 10px); } }
+@keyframes dlgBob { 50% { transform: translateY(3px); } }
+@media (max-width: 600px), (max-height: 500px) {
+  .dialog { padding: 24px 18px 18px; min-height: 100px; }
+  .dlg-text { font-size: 15px; }
+  .dlg-choices button { padding: 12px 14px; font-size: 15px; min-height: 48px; }
+}

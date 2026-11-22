@@ -95,11 +95,13 @@ export class Player {
     this.hookMiss = null;
     this.extVx = 0;
     this.hookBuf = 0;
+    this.slamT = 0;
+    this.slamBuf = 0;
   }
 
   get cx() { return this.x + this.w / 2; }
   get cy() { return this.y + this.h / 2; }
-  get nailDmg() { return this.pvp ? 5 : 5 + 4 * (profile.nail || 0) + (hasCharm('fury') ? 3 : 0); }
+  get nailDmg() { return this.pvp ? 5 : 5 + 4 * (profile.nail || 0) + (hasCharm('fury') ? 3 : 0) + (hasCharm('shadowveil') && this.hp === 1 ? 6 : 0); }
   get runSpd() { return PH.RUN * (hasCharm('swiftwing') ? 1.12 : 1); }
   get focusTime() { return hasCharm('deepfocus') ? (hasCharm('swiftfocus') ? 0.85 : 1.25) : hasCharm('swiftfocus') ? 0.55 : PH.FOCUS_T; }
   calcMaxHp() { return this.pvp ? 5 : 5 + (profile.bonusMasks || 0) + (hasCharm('hardmask') ? 1 : 0); }
@@ -190,6 +192,46 @@ export class Player {
       }
     }
 
+    // ── 내려찍기 (공중에서 아래 + 대시) ──
+    if (this.slamT > 0) {
+      this.slamT += dt;
+      this.vx = 0;
+      this.vy = 1350;
+      this.invul = Math.max(this.invul, 0.1);
+      this.anim = 'fall';
+      if (Math.random() < 0.9) fx.add({ kind: 'spark', x: this.cx + rand(-6, 6), y: this.y, vx: 0, vy: -500, life: 0.16, size: 2, color: '#dff4ff', grav: 0, drag: 0, add: true });
+      const r = W.moveBody(this, 0, this.vy * dt);
+      if (r.hitY > 0 || W.grounded(this)) {
+        this.slamT = 0;
+        this.vy = -260;
+        this.grounded = false;
+        if (g.onSlam) g.onSlam(this);
+      } else if (this.slamT > 1.5) this.slamT = 0;
+      return;
+    }
+    if (control && ab.slam && !this.grounded && inp.held.down && inp.pressed.dash && this.dashT <= 0) {
+      this.slamT = 0.0001;
+      this.dashT = 0;
+      this.jumping = false;
+      inp.consume && inp.consume('dash');
+      audio.play('dash', { pitch: 0.7 });
+      fx.ring(this.cx, this.cy, 6, 40, 0.2, '220,240,255', 3);
+      return;
+    }
+    // 바람 기류 / 물살
+    const fld = W.fieldForce ? W.fieldForce(this) : null;
+    if (fld && this.dashT <= 0) {
+      if (fld.fy) {
+        // fy는 중력을 상쇄한 뒤의 순 가속도 (음수 = 위로)
+        this.vy = Math.max(-520, this.vy + (fld.fy - PH.G) * dt);
+        if (this.vy < 0) this.grounded = false;
+        this.jumping = false;
+        this.djUsed = false;
+        this.airDash = true;
+      }
+      if (fld.fx) this.extVx += (fld.fx * 0.35 - this.extVx) * Math.min(1, dt * 4);
+    }
+
     // 회복(집중)
     const canFocus = this.grounded && this.ember >= PH.EMBER_COST && (this.hp < this.maxHp || g.allyNeedsHeal(this)) && this.atkT <= 0 && this.dashT <= 0;
     if (control && inp.held.heal && canFocus && dirX === 0) {
@@ -256,7 +298,7 @@ export class Player {
       this.dashBuf = 0;
       if (sliding) this.facing = -touchWall;
       else if (dirX) this.facing = dirX;
-      this.dashT = PH.DASH_T;
+      this.dashT = PH.DASH_T * (hasCharm('galecloak') ? 1.35 : 1);
       this.dashCD = PH.DASH_CD;
       if (!this.grounded && !sliding) this.airDash = false;
       this.vy = 0;
@@ -568,7 +610,15 @@ export class Player {
       this.extVx *= Math.exp(-5 * dt);
       if (Math.abs(this.extVx) < 4) this.extVx = 0;
     }
+    // 움직이는 발판에 타고 있으면 함께 이동
+    const ride = W.movers && W.movers.length && this.vy >= 0 ? W.moverUnder(this) : null;
+    if (ride) W.moveBody(this, ride.dx, ride.dy);
+    const oldFoot = this.y + this.h;
     const res = W.moveBody(this, (this.vx + this.extVx) * dt, this.vy * dt, this.dropT > 0);
+    if (W.movers && W.movers.length && this.vy >= 0 && this.dropT <= 0 && W.landMover(this, oldFoot - (ride ? ride.dy : 0))) {
+      this.vy = 0;
+      this.jumping = false;
+    }
     if (res.hitY < 0) {
       this.vy = 0;
       this.jumping = false;
@@ -576,6 +626,7 @@ export class Player {
     if (res.hitY > 0) this.vy = 0;
     this.grounded = this.vy >= 0 && W.grounded(this) && !(this.dropT > 0 && W.onPlatformOnly(this));
     if (this.grounded) {
+      if (W.crumbles && W.crumbles.length) W.stepOn(this);
       this.coyote = PH.COYOTE;
       this.djUsed = false;
       this.airDash = true;
@@ -619,7 +670,7 @@ export class Player {
     if (this.invul > 0 || this.dead || this.downed || this.hazardT > 0 || this.sitting) return false;
     this.hook = null;
     this.hp -= dmg;
-    this.invul = 1.5;
+    this.invul = hasCharm('icemirror') ? 2.25 : 1.5;
     this.hurtT = 0.22;
     this.flash = 0.1;
     this.focusT = 0;

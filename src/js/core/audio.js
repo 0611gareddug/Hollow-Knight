@@ -426,6 +426,34 @@ class Audio {
       }
       // 베이스
       if (d.bass) this._note(out, 'sine', mtof(chord[0] - 12), t, barDur * 0.95, d.bass, { attack: 0.05, release: 0.4 });
+      // 바람 소리 (3장): 띠통과 노이즈가 한 마디 동안 부풀었다 잦아듦
+      if (d.wind && this.noise) {
+        const ctx = this.ctx;
+        const src = ctx.createBufferSource();
+        src.buffer = this.noise;
+        src.loop = true;
+        const f = ctx.createBiquadFilter();
+        f.type = 'bandpass';
+        f.Q.value = 1.4;
+        f.frequency.setValueAtTime(380 + Math.random() * 200, t);
+        f.frequency.linearRampToValueAtTime(700 + Math.random() * 500, t + barDur * 0.5);
+        f.frequency.linearRampToValueAtTime(320, t + barDur * 1.2);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(d.wind, t + barDur * 0.5);
+        g.gain.linearRampToValueAtTime(0.0001, t + barDur * 1.2);
+        src.connect(f);
+        f.connect(g);
+        g.connect(out);
+        src.start(t);
+        src.stop(t + barDur * 1.25);
+      }
+    }
+    // 종소리 (얼음 결정이 부딪히는 듯한 높은 사인파)
+    if (d.chime && Math.random() < d.chime[s]) {
+      const m = pick(chord) + 36;
+      this._note(out, 'sine', mtof(m), t, 0.05, d.chimeVol || 0.03, { attack: 0.002, release: 1.6 });
+      this._note(out, 'sine', mtof(m) * 2.76, t, 0.03, (d.chimeVol || 0.03) * 0.3, { attack: 0.002, release: 0.6 });
     }
     // 아르페지오 (하프 같은 뜯는 소리)
     if (d.arp && Math.random() < d.arpProb[s]) {
@@ -512,6 +540,36 @@ const TRACKS = {
     arpProb: [0.45, 0, 0.1, 0, 0.3, 0, 0.1, 0.1],
     drum: [0.6, 0, 0, 0, 0, 0, 0, 0], drumVol: 0.4,
     chords: [[40, 41, 47], [40, 43, 46], [38, 41, 45], [40, 41, 44]],
+  },
+  // 3장: 얼어붙은 변경 – 느린 단조, 높은 종소리, 바람
+  zone8: {
+    bpm: 52, pad: 0.018, padCut: 900, bass: 0.05, arp: 0.035, arpRel: 2.4, arpOct: 24, wind: 0.05,
+    arpProb: [0.5, 0, 0.2, 0.1, 0.4, 0, 0.2, 0.1],
+    chime: [0.3, 0, 0.1, 0, 0.2, 0, 0.15, 0], chimeVol: 0.028,
+    chords: [[50, 53, 57, 60], [46, 50, 53, 57], [48, 51, 55, 58], [45, 48, 52, 55]],
+    rev: 0.9,
+  },
+  zone9: {
+    bpm: 48, pad: 0.022, padCut: 700, bass: 0.045, arp: 0.045, arpRel: 3, arpOct: 24,
+    arpProb: [0.6, 0.1, 0.3, 0.2, 0.5, 0.1, 0.3, 0.2],
+    chime: [0.2, 0.1, 0.1, 0.1, 0.2, 0.1, 0.1, 0.1], chimeVol: 0.022,
+    chords: [[52, 55, 59, 62], [48, 52, 55, 59], [50, 53, 57, 60], [47, 50, 54, 57]],
+    rev: 1,
+  },
+  zone10: {
+    bpm: 64, pad: 0.02, padCut: 600, bass: 0.075, arp: 0.03, arpRel: 1.4, wind: 0.09,
+    arpProb: [0.5, 0, 0.3, 0, 0.5, 0, 0.3, 0.2],
+    drum: [0.5, 0, 0, 0, 0.3, 0, 0, 0], drumVol: 0.35,
+    chords: [[45, 48, 52], [46, 50, 53], [43, 46, 50], [44, 47, 51]],
+    rev: 0.8,
+  },
+  // 등불 마을 – 따뜻한 장조
+  village: {
+    bpm: 66, pad: 0.016, padCut: 1200, bass: 0.045, arp: 0.05, arpRel: 1.6,
+    arpProb: [0.9, 0.2, 0.6, 0.2, 0.8, 0.2, 0.6, 0.4],
+    chime: [0.15, 0, 0, 0, 0.1, 0, 0, 0], chimeVol: 0.02,
+    chords: [[53, 57, 60, 64], [50, 53, 57, 60], [46, 50, 53, 57], [48, 52, 55, 58]],
+    rev: 0.7,
   },
   boss: {
     bpm: 150, pad: 0.012, padCut: 900, bass: 0.08, ost: 0.03,

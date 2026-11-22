@@ -16,7 +16,8 @@ function mkInput() {
 function explore(def, abilities, start, opts = {}) {
   const w = new World(def);
   for (const id of opts.broken || []) w.breakWall(id);
-  const g = { world: w, abilities, anchors: w.objects.filter((o) => o.type === 'anchor'), allyNeedsHeal: () => false, healAlly() {}, onHeal() {}, onSlash() {} };
+  if (!opts.closedGates) w.setGates(w.lgates, false); // 퍼즐은 풀었다고 가정
+  const g = { world: w, abilities, anchors: w.objects.filter((o) => o.type === 'anchor'), allyNeedsHeal: () => false, healAlly() {}, onHeal() {}, onSlash() {}, onSlam() {} };
   const key = (x, y) => Math.round(x / 16) + ',' + Math.round(y / 8);
   const seen = new Map();
   const queue = [];
@@ -37,6 +38,16 @@ function explore(def, abilities, start, opts = {}) {
       rollouts++;
       P.reset(s.x, s.y);
       P.grounded = true;
+      // 무너지는 발판 복구, 움직이는 발판은 임의 시각에서 시작
+      for (const c of w.crumbles) {
+        c.st = 'idle';
+        c.t = 0;
+        for (let i = 0; i < c.w; i++) w.set(c.x + i, c.y, 7);
+      }
+      const tb = Math.random() * 20;
+      w.tick(0, tb);
+      w.tick(0, tb);
+      const slamAt = abilities.slam && Math.random() < 0.2 ? 0.2 + Math.random() * 0.6 : 99;
       let dir = r % 3 === 0 ? 0 : r % 3 === 1 ? 1 : -1;
       let airT = 0;
       let wasAir = false;
@@ -69,6 +80,10 @@ function explore(def, abilities, start, opts = {}) {
           jHeldUntil = t + holdJ;
         }
         if (t >= dashAt && t < dashAt + DT) inp.pressed.dash = true;
+        if (t >= slamAt && t < slamAt + DT) {
+          inp.held.down = true;
+          inp.pressed.dash = true;
+        }
         // 벽 오르기 정책: 미끄러지면 점프, 잠시 뒤 다시 벽 쪽으로
         if (wallMode && P.anim === 'wall' && wallCd <= 0) {
           inp.pressed.jump = true;
@@ -100,6 +115,7 @@ function explore(def, abilities, start, opts = {}) {
             if (Math.random() < 0.3) dir = dir === 0 ? 1 : dir;
           }
         }
+        w.tick(DT, tb + t);
         P.update(DT, inp, g);
         if (P.hazardT > 0 || w.rectHazard(P.x + 3, P.y + 4, P.w - 6, P.h - 4)) break;
         if (!P.grounded) {
@@ -135,6 +151,41 @@ function report(label, res, expectRooms, points = []) {
 }
 
 const which = process.argv[2] || 'story';
+if (which === 'ch3') {
+  const w0 = new World(STORY);
+  const tile = (room, x, y) => {
+    const r = w0.roomById[room];
+    return [(r.x + x + 0.5) * T, (r.y + y + 1) * T];
+  };
+  const pt = (room, x, y) => { const [a, b] = tile(room, x, y); return { x: a, y: b }; };
+  const ALL = { dash: true, wall: true, djump: true, hook: true };
+  // 마을: 능력 없이 쉼터 → 마을
+  report('마을(능력 없음)', explore(STORY, { dash: false, wall: false, djump: false }, pt('a3', 12, 16), { maxNodes: 3000 }), ['a3v'], [['마을 끝 집', ...tile('a3v', 31, 20)]]);
+  report('마을 → 쉼터 복귀', explore(STORY, { dash: false, wall: false, djump: false }, pt('a3v', 5, 20), { maxNodes: 3000 }), ['a3']);
+  // 숨겨진 방: 재의 회랑 천장 (대시+벽 단계)
+  report('c2 천장 발판', explore(STORY, { dash: true, wall: true, djump: false }, pt('c2', 30, 12), { maxNodes: 6000 }), [], [['천장 아래 발판', ...tile('c2', 55, 5)]]);
+  report('그림자 둥지(천장 부순 뒤)', explore(STORY, { dash: true, wall: true, djump: false }, pt('c2', 30, 12), { broken: ['c2s_ceil'], maxNodes: 8000 }), ['c2s'], [['둥지 바닥', ...tile('c2s', 8, 12)]]);
+  report('그림자 둥지 → c2 복귀', explore(STORY, { dash: true, wall: true, djump: false }, pt('c2s', 8, 12), { broken: ['c2s_ceil'], maxNodes: 6000 }), ['c2']);
+  // 3장 1구역: 내려찍기 없이 사슴 방까지
+  const r1 = explore(STORY, ALL, pt('f3', 40, 28), { maxNodes: 14000, rollouts: 40 });
+  report('3장 변경(내려찍기 없음)', r1, ['g1', 'g2', 'g3', 'g4'], [['g2 가면 조각', ...tile('g2', 3, 10)], ['g2 오른쪽 턱', ...tile('g2', 26, 8)]]);
+  if (r1.rooms.has('j1')) console.log('   ! 내려찍기 없이 j1 진입');
+  // 3장 전체 (내려찍기 + 얼음 덮개 파괴)
+  const SL = Object.assign({ slam: true }, ALL);
+  const r2 = explore(STORY, SL, pt('g4', 22, 20), { broken: ['g4_ice'], maxNodes: 22000, rollouts: 40 });
+  report('3장 전체', r2, ['j1', 'j2', 'j3', 'j4', 'i1', 'i2', 'i3', 'i4']);
+  // 퍼즐: 문을 닫은 채로 횃불/레버에 닿는지
+  const r3 = explore(STORY, SL, pt('j1', 3, 25), { broken: ['g4_ice'], closedGates: true, maxNodes: 8000 });
+  report('j1 횃불(문 닫힘)', r3, [], [['횃불1', ...tile('j1', 7, 25)], ['횃불2', ...tile('j1', 16, 18)], ['횃불3', ...tile('j1', 28, 25)]]);
+  if (r3.rooms.has('j2')) console.log('   ! 문이 닫혀 있는데 j2 진입');
+  report('j1 → g4 복귀', explore(STORY, SL, pt('j1', 3, 25), { broken: ['g4_ice'], maxNodes: 8000 }), ['g4']);
+  const r4 = explore(STORY, SL, pt('j2', 3, 13), { broken: ['g4_ice'], closedGates: true, maxNodes: 8000 });
+  report('j2 레버(문 닫힘)', r4, [], [['레버', ...tile('j2', 21, 5)]]);
+  const r5 = explore(STORY, SL, pt('i3', 3, 12), { broken: ['g4_ice'], closedGates: true, maxNodes: 8000 });
+  report('i3 횃불(문 닫힘)', r5, [], [['횃불1', ...tile('i3', 4, 12)], ['횃불2', ...tile('i3', 19, 8)], ['횃불3', ...tile('i3', 34, 12)]]);
+  report('i4 → i1 복귀', explore(STORY, SL, pt('i4', 10, 24), { broken: ['g4_ice'], maxNodes: 14000 }), ['i1']);
+  report('j4 → 위쪽 출구', explore(STORY, SL, pt('j4', 10, 23), { broken: ['g4_ice'], maxNodes: 10000 }), ['i1']);
+}
 if (which === 'story') {
   const w0 = new World(STORY);
   const spawn = w0.spawn;
@@ -203,9 +254,10 @@ if (which === 'surfaces') {
     { ab: { dash: true, wall: true, djump: false }, start: tile('b5', 15, 23), zones: [3] },
     { ab: { dash: true, wall: true, djump: true }, start: tile('b2', 40, 17), zones: [4], broken: ['b2_secret'] },
     { ab: { dash: true, wall: true, djump: true, hook: true }, start: tile('d2', 33, 18), zones: [5, 6, 7] },
+    { ab: { dash: true, wall: true, djump: true, hook: true, slam: true }, start: tile('g4', 22, 20), zones: [8, 9, 10], broken: ['g4_ice'] },
   ];
   for (const st of stages) {
-    const res = explore(STORY, st.ab, st.start, { maxNodes: 16000, rollouts: 44, broken: st.broken });
+    const res = explore(STORY, st.ab, st.start, { maxNodes: st.zones[0] === 8 ? 26000 : 16000, rollouts: 44, broken: st.broken });
     const nodes = [...res.seen.values()];
     const W = res.w;
     const solid = (i, j) => { const t = W.get(i, j); return t === 1 || t === 5 || t === 6; };
